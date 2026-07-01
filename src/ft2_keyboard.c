@@ -388,6 +388,7 @@ static void handleKeys(SDL_Keycode keycode, SDL_Scancode scanKey)
 		break;
 
 		// play pattern
+		case SDLK_MODE: // Alt Gr is SDLK_MODE on some keyboards/layouts
 		case SDLK_RALT:
 		{
 			if (!keyb.leftCtrlPressed) // kludge for Mac (toggle fullscreen)
