@@ -183,36 +183,50 @@
 
 #define WINDOWED_SINC8_INTERPOLATION(s, f, scale) \
 { \
-	const float *t = v->fSincLUT + (((uint32_t)(f) >> SINC8_FRACSHIFT) & SINC8_FRACMASK); \
-	fSample = ((s[-3] * t[0]) + \
-	           (s[-2] * t[1]) + \
-	           (s[-1] * t[2]) + \
-	           ( s[0] * t[3]) + \
-	           ( s[1] * t[4]) + \
-	           ( s[2] * t[5]) + \
-	           ( s[3] * t[6]) + \
-	           ( s[4] * t[7])) * (1.0f / scale); \
+	const uint32_t frac32 = (uint32_t)f; \
+	const uint32_t lutPhase = frac32 >> INTRP_PHASE_SHIFT; \
+	const float fIntrpFrac = (int32_t)(frac32 & INTRP_PHASE_MASK) * (1.0f / INTRP_PHASE_SCALE); \
+	\
+	/* it may look like we go out of bounds for fSinc_2, but we have an extra phase after LUT */ \
+	const float *fSinc_1 = v->fSincLUT + ( lutPhase    << SINC8_TAPS_BITS); \
+	const float *fSinc_2 = v->fSincLUT + ((lutPhase+1) << SINC8_TAPS_BITS); \
+	\
+	float fSum = 0.0f; \
+	for (int32_t j = 0; j < SINC8_TAPS; j++) \
+	{ \
+		/* do linear interpolation between phases */ \
+		const float y1 = fSinc_1[j]; \
+		const float y2 = fSinc_2[j]; \
+		\
+		/* out of bounds for s[] is safe here and returns the correct samples */ \
+		fSum += s[j-((SINC8_TAPS/2)-1)] * (y1 + ((y2 - y1) * fIntrpFrac)); \
+	} \
+	\
+	fSample = fSum * (1.0f / scale); \
 }
 
 #define WINDOWED_SINC16_INTERPOLATION(s, f, scale) \
 { \
-	const float *t = v->fSincLUT + (((uint32_t)(f) >> SINC16_FRACSHIFT) & SINC16_FRACMASK); \
-	fSample = (( s[-7] * t[0]) + \
-	           ( s[-6] * t[1]) + \
-	           ( s[-5] * t[2]) + \
-	           ( s[-4] * t[3]) + \
-	           ( s[-3] * t[4]) + \
-	           ( s[-2] * t[5]) + \
-	           ( s[-1] * t[6]) + \
-	           (  s[0] * t[7]) + \
-	           (  s[1] * t[8]) + \
-	           (  s[2] * t[9]) + \
-	           (  s[3] * t[10]) + \
-	           (  s[4] * t[11]) + \
-	           (  s[5] * t[12]) + \
-	           (  s[6] * t[13]) + \
-	           (  s[7] * t[14]) + \
-	           (  s[8] * t[15])) * (1.0f / scale); \
+	const uint32_t frac32 = (uint32_t)f; \
+	const uint32_t lutPhase = frac32 >> INTRP_PHASE_SHIFT; \
+	const float fIntrpFrac = (int32_t)(frac32 & INTRP_PHASE_MASK) * (1.0f / INTRP_PHASE_SCALE); \
+	\
+	/* it may look like we go out of bounds for fSinc_2, but we have an extra phase after LUT */ \
+	const float *fSinc_1 = v->fSincLUT + ( lutPhase    << SINC16_TAPS_BITS); \
+	const float *fSinc_2 = v->fSincLUT + ((lutPhase+1) << SINC16_TAPS_BITS); \
+	\
+	float fSum = 0.0f; \
+	for (int32_t j = 0; j < SINC16_TAPS; j++) \
+	{ \
+		/* do linear interpolation between phases */ \
+		const float y1 = fSinc_1[j]; \
+		const float y2 = fSinc_2[j]; \
+		\
+		/* out of bounds for s[] is safe here and returns the correct samples */ \
+		fSum += s[j-((SINC16_TAPS/2)-1)] * (y1 + ((y2 - y1) * fIntrpFrac)); \
+	} \
+	\
+	fSample = fSum * (1.0f / scale); \
 }
 
 #define RENDER_8BIT_SMP_S8INTRP \

@@ -43,8 +43,8 @@ bool setupWindowedSincTables(void)
 	sincKernel_t *k = sincKernelConfig;
 	for (int32_t i = 0; i < SINC_KERNELS; i++, k++)
 	{
-		 fSinc8[i] = (float *)malloc(INTRP_PHASES * SINC8_TAPS  * sizeof (float));
-		fSinc16[i] = (float *)malloc(INTRP_PHASES * SINC16_TAPS * sizeof (float));
+		 fSinc8[i] = (float *)malloc((SINC_OVERSAMPLING+1) *  SINC8_TAPS * sizeof (float));
+		fSinc16[i] = (float *)malloc((SINC_OVERSAMPLING+1) * SINC16_TAPS * sizeof (float));
 
 		if (fSinc8[i] == NULL || fSinc16[i] == NULL)
 		{
@@ -52,13 +52,13 @@ bool setupWindowedSincTables(void)
 			return false;
 		}
 
-		if (!calcPolyphaseSincLUT(fSinc8[i], SINC8_TAPS, INTRP_PHASES, k->kaiserBeta, k->sincCutoff))
+		if (!calcPolyphaseSincLUT(fSinc8[i], SINC8_TAPS, SINC_OVERSAMPLING, k->kaiserBeta, k->sincCutoff))
 		{
 			showErrorMsgBox("Not enough memory!");
 			return false;
 		}
 
-		if (!calcPolyphaseSincLUT(fSinc16[i], SINC16_TAPS, INTRP_PHASES, k->kaiserBeta, k->sincCutoff))
+		if (!calcPolyphaseSincLUT(fSinc16[i], SINC16_TAPS, SINC_OVERSAMPLING, k->kaiserBeta, k->sincCutoff))
 		{
 			showErrorMsgBox("Not enough memory!");
 			return false;
@@ -91,7 +91,7 @@ void freeWindowedSincTables(void)
 }
 
 // zeroth-order modified Bessel function of the first kind (series approximation)
-static inline double besselI0(double z)
+static double besselI0(double z)
 {
 	double s = 1.0, ds = 1.0, d = 2.0;
 	const double zz = z * z;
@@ -107,7 +107,7 @@ static inline double besselI0(double z)
 	return s;
 }
 
-static inline double sinc(double x, double cutoff)
+static double sinc(double x, double cutoff)
 {
 	if (x == 0.0)
 	{
@@ -136,6 +136,7 @@ static bool calcPolyphaseSincLUT(float *fOut, int32_t numTaps, int32_t numPhases
 	const double phaseMul = 1.0 / numPhases;
 	const double kaiserXMul = 1.0 / (numTaps / 2);
 
+	float *fOutPtr = fOut;
 	for (int32_t i = 0; i < numPhases; i++)
 	{
 		const double phase = i * phaseMul;
@@ -158,8 +159,13 @@ static bool calcPolyphaseSincLUT(float *fOut, int32_t numTaps, int32_t numPhases
 		// normalize for unity gain before storing taps
 		const double tapMul = 1.0 / tapSum;
 		for (int32_t j = 0; j < numTaps; j++)
-			*fOut++ = (float)(tapBuffer[j] * tapMul);
+			*fOutPtr++ = (float)(tapBuffer[j] * tapMul);
 	}
+
+	// store inverted wrap-around taps after end of LUT (for phase interpolation)
+	float *fEnd = &fOut[numTaps * numPhases];
+	for (int32_t i = 0; i < numTaps; i++)
+		fEnd[i] = fOut[(numTaps-1) - i];
 
 	free(tapBuffer);
 	return true;
