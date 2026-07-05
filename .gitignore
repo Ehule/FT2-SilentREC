@@ -1,9 +1,9 @@
 
-vs2019_project/.vs/ft2-clone/v16/.suo
-vs2019_project/enc_temp_folder/*
-vs2019_project/ft2-clone/Release/ft2-clone.vcxproj.FileListAbsolute.txt
-vs2019_project/ft2-clone/x64/Debug/ft2-clone.vcxproj.FileListAbsolute.txt
-vs2019_project/ft2-clone/Debug/ft2-clone.vcxproj.FileListAbsolute.txt
+vs2026_project/.vs/*
+vs2026_project/enc_temp_folder/*
+vs2026_project/ft2-clone/Release/*
+vs2026_project/ft2-clone/x64/Debug/ft2-clone.vcxproj.FileListAbsolute.txt
+vs2026_project/ft2-clone/Debug/*
 .DS_Store
 *.exe
 *.db
