@@ -2065,6 +2065,15 @@ void cbFileOverwriteWarn(void)
 void cbSilentRecEntry(void)
 {
     config.specialFlags2 ^= SILENT_REC_ENTRY;
+
+    checkBoxes[CB_CONF_SILENT_REC_ENTRY].checked =
+        (config.specialFlags2 & SILENT_REC_ENTRY) != 0;
+
+    if (ui.configScreenShown &&
+        editor.currConfigScreen == CONFIG_SCREEN_MISCELLANEOUS)
+    {
+        drawCheckBox(CB_CONF_SILENT_REC_ENTRY);
+    }
 }
 void cbMultiChanRec(void)
 {
