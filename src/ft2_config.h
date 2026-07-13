@@ -74,6 +74,7 @@ enum
 	STRETCH_IMAGE = 4,
 	USE_OS_MOUSE_POINTER = 8,
 	PRECISE_BPM = 16,
+	SILENT_REC_ENTRY = 32,
 
 	// windowFlags
 	WINSIZE_AUTO = 1,
@@ -258,6 +259,7 @@ void cbPattCutToBuff(void);
 void cbKillNotesAtStop(void);
 void cbFileOverwriteWarn(void);
 void cbMultiChanRec(void);
+void cbSilentRecEntry(void);
 void cbMultiChanKeyJazz(void);
 void cbMultiChanEdit(void);
 void cbRecKeyOff(void);

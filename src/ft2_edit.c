@@ -440,7 +440,9 @@ void recordNote(uint8_t noteNum, int8_t vol) // directly ported from the origina
 
 		editor.keyOnTab[c] = noteNum;
 
-		if (row >= oldRow  && !(songPlaying && recmode)) // suppress audition while recording playback
+			 if (row >= oldRow &&
+                   	     !(songPlaying && recmode &&
+                               (config.specialFlags2 & SILENT_REC_ENTRY))) // suppress audition while recording playback
 		{
 #ifdef HAS_MIDI
 			playTone(c, editor.curInstr, noteNum, vol, midi.currMIDIVibDepth, midi.currMIDIPitch);
@@ -500,7 +502,9 @@ void recordNote(uint8_t noteNum, int8_t vol) // directly ported from the origina
 		editor.keyOnTab[c] = 0;
 		editor.keyOffTime[c] = editor.keyOffNr;
 
-		if (row >= oldRow && !(songPlaying && recmode)) // surppress audtion while recording playback
+		if (row >= oldRow &&
+		    !(songPlaying && recmode &&
+		      (config.specialFlags2 & SILENT_REC_ENTRY))) //suppress audtion while recording playback
 		{
 #ifdef HAS_MIDI
 			playTone(c, editor.curInstr, NOTE_OFF, vol, midi.currMIDIVibDepth, midi.currMIDIPitch);
