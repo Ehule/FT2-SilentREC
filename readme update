@@ -1,0 +1,29 @@
+# FT2 SilentREC
+
+A personal fork of 8bitbubsy's FT2 Clone that adds an optional **Silent Record** mode for pattern and song recording.
+
+## Features
+
+### Silent Record
+When recording during playback, newly entered notes are written into the pattern **without auditioning them immediately**. This allows you to hear only the existing loop while building new material.
+
+The feature is intended for loop-based composition and live pattern construction.
+
+### Toggle
+- **Config → Miscellaneous → Silent Record**
+- **Hotkey:** `Ctrl + Shift + R`
+
+### Status Indicator
+When Silent Record is enabled, an **SR** indicator appears next to the Global Volume display.
+
+## Notes
+
+- The original FT2 recording behavior remains the default.
+- Silent Record is completely optional and can be enabled or disabled at any time.
+- A small edge case currently exists when row quantization is enabled. With quantization disabled, Silent Record behaves consistently.
+
+## Credits
+
+This project is based on **8bitbubsy's FT2 Clone**, an open-source recreation of FastTracker II.
+
+This fork is an experimental project focused on alternative tracker workflows and live loop-based composition.
