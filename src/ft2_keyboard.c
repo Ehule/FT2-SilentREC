@@ -1040,6 +1040,12 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 
 		case SDLK_r:
 		{
+			if (keyb.leftCtrlPressed && keyb.leftShiftPressed)
+			{
+				cbSilentRecEntry();
+				return true;
+			}
+
 			if (keyb.leftAltPressed)
 			{
 				if (ui.sampleEditorShown)

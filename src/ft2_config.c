@@ -2074,6 +2074,7 @@ void cbSilentRecEntry(void)
     {
         drawCheckBox(CB_CONF_SILENT_REC_ENTRY);
     }
+    ui.updatePosSections = true;
 }
 void cbMultiChanRec(void)
 {

@@ -1052,9 +1052,9 @@ void handleRedrawing(void)
 					else if (playMode == PLAYMODE_RECSONG) str = "> Rec. sng. <";
 					else if (playMode == PLAYMODE_RECPATT) str = "> Rec. ptn. <";
 
-					uint16_t areaWidth = 102;
+					uint16_t areaWidth = 78;
 					uint16_t maxStrWidth = 76; // wide enough
-					uint16_t x = 101;
+					uint16_t x = 125;
 					uint16_t y = 80;
 
 					if (ui.extendedPatternEditor)
@@ -1062,6 +1062,12 @@ void handleRedrawing(void)
 						y = 56;
 						areaWidth = 443;
 					}
+					// silent recording indicator
+					fillRect(101, y, 24, FONT1_CHAR_H+1, PAL_DESKTOP);
+
+					if (config.specialFlags2 & SILENT_REC_ENTRY)
+    					textOut(108, y, PAL_FORGRND, "SR");
+
 
 					// clear area
 					uint16_t clrX = x + ((areaWidth - maxStrWidth) / 2);
