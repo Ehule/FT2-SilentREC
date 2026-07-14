@@ -20,7 +20,8 @@ When Silent Record is enabled, an **SR** indicator appears next to the Global Vo
 
 - The original FT2 recording behavior remains the default.
 - Silent Record is completely optional and can be enabled or disabled at any time.
-- A small edge case currently exists when row quantization is enabled. With quantization disabled, Silent Record behaves consistently.
+- A small edge case currently exists when row quantization is enabled that audtioned notes are occasionally heard due to the delay timing.
+- With quantization disabled, Silent Record behaves consistently.
 
 ## Credits
 
