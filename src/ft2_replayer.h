@@ -310,6 +310,7 @@ void closeReplayer(void);
 void resetMusic(void);
 void startPlaying(int8_t mode, int16_t row);
 void stopPlaying(void);
+void handleRecPlusExhaustion(void);
 void stopVoices(void);
 void setSongPos(int16_t songPos, int16_t row, bool resetTick);
 void pauseMusic(void); // stops reading pattern data

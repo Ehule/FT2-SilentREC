@@ -50,6 +50,7 @@ void resetFPSCounter(void);
 void beginFPSCounter(void);
 void endFPSCounter(void);
 void flipFrame(void);
+void showRecPlusOverlay(const char *text);
 void showErrorMsgBox(const char *fmt, ...);
 void updateWindowTitle(bool forceUpdate);
 void handleScopesFromChQueue(chSyncData_t *chSyncData, uint8_t *scopeUpdateStatus);

@@ -278,7 +278,7 @@ uint16_t textWidth16(const char *textPtr)
 
 	uint16_t textWidth = 0;
 	while (*textPtr != '\0')
-		textWidth += charWidth(*textPtr++);
+		textWidth += charWidth16(*textPtr++);
 
 	// there will be a pixel spacer at the end of the last char/glyph, remove it
 	if (textWidth > 0)

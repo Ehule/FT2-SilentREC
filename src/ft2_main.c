@@ -250,6 +250,7 @@ int main(int argc, char *argv[])
 		handleThreadEvents();
 		readInput();
 		handleEvents();
+		handleRecPlusExhaustion();
 		handleRedrawing();
 		flipFrame();
 		endFPSCounter();

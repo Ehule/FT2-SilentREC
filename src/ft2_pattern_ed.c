@@ -2752,6 +2752,58 @@ static void zapSong(void)
 	updateWindowTitle(true);
 }
 
+static void zapPatternData(void)
+{
+	lockMixerCallback();
+
+	const int16_t oldSongPos = song.songPos;
+	const int16_t oldRow = song.row;
+	const uint16_t oldPattNum = song.pattNum;
+	const uint16_t oldNumRows = song.currNumRows;
+
+	/*
+	** Reserve every pattern used by the order list, even when it was
+	** previously an unallocated blank pattern.
+	*/
+	for (uint16_t i = 0; i < song.songLength; i++)
+	{
+		const uint8_t pattNum = song.orders[i];
+		if (pattern[pattNum] == NULL)
+			allocatePattern(pattNum);
+	}
+
+	/*
+	** Erase all currently allocated pattern contents, but keep the
+	** allocations, pattern lengths, order list and song structure.
+	*/
+	for (uint16_t i = 0; i < MAX_PATTERNS; i++)
+	{
+		if (pattern[i] != NULL)
+			memset(pattern[i], 0, (MAX_PATT_LEN * TRACK_WIDTH) + 16);
+	}
+
+	/*
+	** allocatePattern() temporarily updates song.currNumRows, so restore
+	** the exact editing/playback position and current pattern state.
+	*/
+	song.songPos = oldSongPos;
+	song.row = oldRow;
+	song.pattNum = oldPattNum;
+	song.currNumRows = oldNumRows;
+
+	clearPattMark();
+	resetChannels();
+
+	unlockMixerCallback();
+
+	ui.updatePatternEditor = true;
+	ui.updatePosSections = true;
+	ui.updatePosEdScrollBar = true;
+
+	setSongModifiedFlag();
+	updateWindowTitle(true);
+}
+
 static void zapInstrs(void)
 {
 	lockMixerCallback();
@@ -2790,12 +2842,16 @@ void pbZap(void)
 	{
 		zapSong();
 	}
-	else if (choice == 3) // zap instruments
+	else if (choice == 3) // zap pattern data
+	{
+		zapPatternData();
+	}
+	else if (choice == 4) // zap instruments
 	{
 		zapInstrs();
 	}
 
-	if (choice >= 1 && choice <= 3)
+	if (choice >= 1 && choice <= 4)
 	{
 		// redraw top screens
 		hideTopScreen();

@@ -33,6 +33,16 @@ static uint32_t logTab[4*12*16], frequencyMulFactor, frequencyDivFactor;
 static uint64_t songTickDuration52fp[(MAX_BPM-MIN_BPM)+1];
 static double dDeltaMul, dScopeDeltaMul, dScopeDrawDeltaMul;
 static bool bxxOverflow;
+
+/*
+** Runtime-only REC+ state. It deliberately is not saved to config,
+** so GAME OVER becomes available again after restarting FT2.
+*/
+static bool recPlusGeneratedThisTake;
+static bool recPlusGameOverShown;
+static volatile bool recPlusExhaustionPending;
+static volatile bool recPlusEarnedGameOver;
+
 static note_t nilPatternLine[MAX_CHANNELS];
 
 typedef void (*volColumnEfxRoutine)(channel_t *ch);
@@ -2336,7 +2346,25 @@ static void getNextPos(void)
 					(config.specialFlags2 & AUTO_PATT_GEN) &&
 					song.songPos == song.songLength-1)
 				{
-					insertNewPatternAfterCurrentSongPos(false);
+					if (insertNewPatternAfterCurrentSongPos(false))
+					{
+						recPlusGeneratedThisTake = true;
+					}
+					else
+					{
+						/*
+						** Stop immediately at the end instead of wrapping and
+						** potentially recording over the beginning of the song.
+						*/
+						recPlusEarnedGameOver =
+							recPlusGeneratedThisTake && !recPlusGameOverShown;
+						recPlusExhaustionPending = true;
+
+						song.row = song.currNumRows - 1;
+						playMode = PLAYMODE_IDLE;
+						songPlaying = false;
+						return;
+					}
 				}
 
 				if (++song.songPos >= song.songLength)
@@ -2991,6 +3019,14 @@ void startPlaying(int8_t mode, int16_t row)
 	playMode = mode;
 	songPlaying = true;
 
+	/*
+	** A GAME OVER is earned only if this REC+ take itself generated
+	** at least one new pattern before exhausting the available reel.
+	*/
+	recPlusGeneratedThisTake = false;
+	recPlusExhaustionPending = false;
+	recPlusEarnedGameOver = false;
+
 	resetReplayerState();
 	resetPlaybackTime();
 
@@ -3005,6 +3041,33 @@ void startPlaying(int8_t mode, int16_t row)
 
 	ui.updatePosSections = true;
 	ui.updatePatternEditor = true;
+}
+
+void handleRecPlusExhaustion(void)
+{
+	if (!recPlusExhaustionPending)
+		return;
+
+	recPlusExhaustionPending = false;
+
+	/*
+	** The replayer already stopped progression. Run the ordinary stop
+	** cleanup here on the main thread, where GUI/audio state changes
+	** are safe.
+	*/
+	stopPlaying();
+
+	if (recPlusEarnedGameOver)
+	{
+		recPlusGameOverShown = true;
+		showRecPlusOverlay("GAME OVER");
+	}
+	else
+	{
+		showRecPlusOverlay("REC+ FULL");
+	}
+
+	recPlusEarnedGameOver = false;
 }
 
 void stopPlaying(void)

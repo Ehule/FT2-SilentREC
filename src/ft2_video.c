@@ -179,6 +179,161 @@ static void drawFPSCounter(void)
 	charOut(164 + x, 16, PAL_FORGRND, '*');
 }
 
+static char recPlusOverlayText[32];
+static uint32_t *recPlusOverlayBackup;
+static int32_t recPlusOverlayFrames;
+
+void showRecPlusOverlay(const char *text)
+{
+	if (recPlusOverlayBackup == NULL)
+	{
+		recPlusOverlayBackup = (uint32_t *)malloc(
+			SCREEN_W * SCREEN_H * sizeof (uint32_t));
+
+		if (recPlusOverlayBackup == NULL)
+			return;
+	}
+
+	memcpy(recPlusOverlayBackup, video.frameBuffer,
+		SCREEN_W * SCREEN_H * sizeof (uint32_t));
+
+	strncpy(recPlusOverlayText, text, sizeof (recPlusOverlayText)-1);
+	recPlusOverlayText[sizeof (recPlusOverlayText)-1] = '\0';
+
+	/* Approximately two seconds at 60Hz. */
+	recPlusOverlayFrames = 120;
+}
+
+static void drawRecPlusOverlay(void)
+{
+	if (recPlusOverlayFrames <= 0 || recPlusOverlayBackup == NULL)
+		return;
+
+	memcpy(video.frameBuffer, recPlusOverlayBackup,
+		SCREEN_W * SCREEN_H * sizeof (uint32_t));
+
+	const int32_t scale = 2;
+	const int32_t glyphH = 18;
+	const int32_t maxGlyphW = SCREEN_W - 2;
+	const int32_t srcX = 1;
+	const int32_t srcY = 1;
+
+	const uint32_t alpha =
+		(uint32_t)((recPlusOverlayFrames * 255) / 120);
+
+	const uint32_t solidRed = RGB32(255, 24, 24);
+
+	int32_t glyphW = textWidth16(recPlusOverlayText) + 2;
+	if (glyphW > maxGlyphW)
+		glyphW = maxGlyphW;
+
+	/*
+	** Temporarily render the normal large font in the upper-left
+	** corner, capture its red letters and shadow, then restore the GUI.
+	*/
+	const uint32_t oldForeground = video.palette[PAL_FORGRND];
+	video.palette[PAL_FORGRND] = solidRed;
+
+	bigTextOutShadow(
+		(uint16_t)srcX,
+		(uint16_t)srcY,
+		PAL_FORGRND,
+		PAL_BLCKTXT,
+		recPlusOverlayText);
+
+	video.palette[PAL_FORGRND] = oldForeground;
+
+	uint32_t glyphPixels[(SCREEN_W - 2) * glyphH];
+	bool glyphMask[(SCREEN_W - 2) * glyphH];
+
+	for (int32_t y = 0; y < glyphH; y++)
+	{
+		for (int32_t x = 0; x < glyphW; x++)
+		{
+			const int32_t srcIndex =
+				((srcY - 1 + y) * SCREEN_W) + (srcX - 1 + x);
+
+			const int32_t glyphIndex = (y * maxGlyphW) + x;
+
+			glyphPixels[glyphIndex] = video.frameBuffer[srcIndex];
+
+			glyphMask[glyphIndex] =
+				video.frameBuffer[srcIndex] !=
+				recPlusOverlayBackup[srcIndex];
+		}
+	}
+
+	memcpy(video.frameBuffer, recPlusOverlayBackup,
+		SCREEN_W * SCREEN_H * sizeof (uint32_t));
+
+	const int32_t scaledW = glyphW * scale;
+	const int32_t scaledH = glyphH * scale;
+
+	/* Center the complete phrase horizontally and vertically. */
+	const int32_t dstX = (SCREEN_W - scaledW) / 2;
+	const int32_t dstY = (SCREEN_H - scaledH) / 2;
+
+	for (int32_t y = 0; y < glyphH; y++)
+	{
+		for (int32_t x = 0; x < glyphW; x++)
+		{
+			const int32_t glyphIndex = (y * maxGlyphW) + x;
+			if (!glyphMask[glyphIndex])
+				continue;
+
+			const uint32_t srcColor = glyphPixels[glyphIndex];
+			const uint32_t sr = RGB32_R(srcColor);
+			const uint32_t sg = RGB32_G(srcColor);
+			const uint32_t sb = RGB32_B(srcColor);
+
+			for (int32_t sy = 0; sy < scale; sy++)
+			{
+				const int32_t py = dstY + (y * scale) + sy;
+				if (py < 0 || py >= SCREEN_H)
+					continue;
+
+				for (int32_t sx = 0; sx < scale; sx++)
+				{
+					const int32_t px = dstX + (x * scale) + sx;
+					if (px < 0 || px >= SCREEN_W)
+						continue;
+
+					const int32_t dstIndex = (py * SCREEN_W) + px;
+					const uint32_t bgColor =
+						recPlusOverlayBackup[dstIndex];
+
+					const uint32_t br = RGB32_R(bgColor);
+					const uint32_t bg = RGB32_G(bgColor);
+					const uint32_t bb = RGB32_B(bgColor);
+
+					const uint32_t outR =
+						((sr * alpha) +
+						(br * (255 - alpha))) / 255;
+
+					const uint32_t outG =
+						((sg * alpha) +
+						(bg * (255 - alpha))) / 255;
+
+					const uint32_t outB =
+						((sb * alpha) +
+						(bb * (255 - alpha))) / 255;
+
+					video.frameBuffer[dstIndex] =
+						RGB32(outR, outG, outB);
+				}
+			}
+		}
+	}
+
+	recPlusOverlayFrames--;
+
+	if (recPlusOverlayFrames == 0)
+	{
+		memcpy(video.frameBuffer, recPlusOverlayBackup,
+			SCREEN_W * SCREEN_H * sizeof (uint32_t));
+	}
+}
+
 void endFPSCounter(void)
 {
 	if (video.showFPSCounter && frameStartTime > 0)
@@ -194,6 +349,8 @@ void flipFrame(void)
 
 	if (video.showFPSCounter)
 		drawFPSCounter();
+
+	drawRecPlusOverlay();
 
 	SDL_UpdateTexture(video.texture, NULL, video.frameBuffer, SCREEN_W * sizeof (int32_t));
 

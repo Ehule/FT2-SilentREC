@@ -160,15 +160,11 @@ static void loadConfigFromBuffer(bool defaults)
 	if (config.audioInputFreq <= 1) // default value from FT2 (this was cdr_Sync) - set defaults
 		config.audioInputFreq = INPUT_FREQ_48KHZ;
 
-	if (config.specialFlags == 64) // default value from FT2 (this was ptnDefaultLen byte #1) - set defaults
-		config.specialFlags = BUFFSIZE_1024 | BITDEPTH_16;
-
-	if (config.specialFlags & 64) // deprecated BUFFSIZE_4096 ("Very large") setting
-	{
-		// set to current highest setting ("Large" aka. 2048)
-		config.specialFlags &= ~(BUFFSIZE_1024 + 64);
-		config.specialFlags |= BUFFSIZE_2048;
-	}
+	/*
+	** specialFlags bit 64 was historically used for the deprecated
+	** 4096-byte audio-buffer option. This fork now assigns that bit
+	** to INHERIT_PATT_LEN, so it must not be migrated or cleared.
+	*/
 
 	if (config.windowFlags == 0) // default value from FT2 (this was ptnDefaultLen byte #2) - set defaults
 		config.windowFlags = WINSIZE_AUTO;

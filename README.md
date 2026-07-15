@@ -1,44 +1,89 @@
-# ft2-clone
-Fasttracker II clone for Windows/macOS/Linux
+# FT2-Tapehead Edition
 
-Aims to be a highly accurate clone of the classic Fasttracker II software for MS-DOS. \
-The XM player itself has been directly ported from the original source code, for maximum accuracy. \
-The code is partly my own, partly based on the original FT2 code.
+> **Compose like a tracker. Think like a tape machine.**
 
-*What is Fasttracker II? Read about it on [Wikipedia](https://en.wikipedia.org/wiki/FastTracker_2).*
+**FT2-Tapehead Edition** is a workflow-focused fork of the FastTracker
+II Clone that reimagines tracker composition through the lens of
+tape-machine recording. It preserves the classic FastTracker II
+interface while introducing optional tools that reduce repetitive
+editing and encourage improvisation.
 
-# Releases
-Windows/macOS binary releases can always be found at [16-bits.org](https://16-bits.org/ft2.php).
+The goal is not to redesign FastTracker II---it is to preserve its
+speed, familiarity, and philosophy while removing repetitive actions
+that interrupt creative flow.
 
-Linux binaries can be found [here](https://repology.org/project/fasttracker2/versions). \
-If these don't work for you, you'll have to compile the code manually.
+## Features
 
-# Improvements over original DOS version
-- New sample editor features, like waveform generators and resonant filters
-- The channel resampler/mixer uses floating-point arithmetics for less errors, and has extra interpolation options (4-point cubic spline and 8-point/16-point windowed-sinc)
-- The sample loader supports AIFF/FLAC/OGG/MP3/BRR (SNES) samples and more WAV types than original FT2. It will also attempt to tune the sample (finetune and rel. note) to its playback frequency on load.
-- It contains a new "Trim" feature, which will remove unused stuff to potentially make the module smaller
-- Drag n' drop of modules/samples
-- The waveform display in the sample editor shows peak based data when zoomed out
-- Textboxes have a text marking option, where you can cut/copy/paste
-- MOD/STM/S3M import has been slightly improved (S3M import is still not ideal, as it's not compatible with XM)
-- Supports loading DIGI Booster (non-Pro) modules
-- Supports loading Impulse Tracker modules (Awful support! Don't use this for playback)
-- It supports loading XMs with stereo samples, uneven amount of channels, more than 32 channels, more than 16 samples per instrument, more than 128 patterns etc. The unsupported data will be mixed to mono/truncated.
-- It has some small additions to make life easier (C4/middle-C Hz display in Instr. Ed., envelope point coordinate display, etc).
+### Silent Record
 
-# Screenshots
+Record into patterns without hearing every newly entered note, reducing
+loop fatigue during composition.
 
-![Example #1](https://16-bits.org/ft2-clone-3.png)
-![Example #2](https://16-bits.org/ft2-clone-4.png)
+### Inherit Pattern Length (IPL)
 
-# Compiling the code
-Build instructions can be found in the repository (HOW-TO-COMPILE.txt).
+Automatically inherit the previous pattern's length when creating new
+patterns, making mixed-length song structures effortless.
 
-Keep in mind that the program may fail to compile on Linux, depending on your distribution and GCC version. \
-Please don't nag me about it, and try to use the Linux packages linked to from [16-bits.org](https://16-bits.org/ft2.php) instead.
+### Insert New Pattern (INP)
 
-PS: The source code is quite hackish and hardcoded. \
-My first priority is to make an accurate clone, and not to make flexible and easily modifiable code.
+Insert a brand-new pattern instead of duplicating the current one.
 
-Big parts of the code (except GUI) are directly ported from the original FT2 source code, with permission to use a BSD 3-Clause license.
+### Automatic Pattern Generation (APG / REC+)
+
+While recording in Song Record mode, **REC+** automatically extends the
+song by creating new patterns as playback reaches the end.
+
+This transforms FT2 from a pattern editor into a tape-inspired
+composition environment while preserving its classic workflow.
+
+### Pattern Data Zap (PatData)
+
+Erase all musical note data while preserving:
+
+-   Pattern lengths
+-   Song order
+-   Pattern allocation
+-   Overall song structure
+
+Think of it as erasing the tape while leaving the reels intact.
+
+### REC+ Interface
+
+When APG is enabled, the normal Song Record button becomes **REC+**,
+clearly indicating the enhanced recording mode.
+
+### Hidden Easter Egg
+
+If you genuinely fill every available pattern through REC+ recording,
+FT2-Tapehead Edition rewards you with a hidden **GAME OVER** screen.
+
+Subsequent attempts display **REC+ FULL**.
+
+## Philosophy
+
+Every addition in FT2-Tapehead Edition is optional.
+
+Disable the new features and the tracker behaves like the standard
+FastTracker II Clone.
+
+Enable them, and the tracker becomes a fast, improvisational composition
+tool inspired by tape-machine workflows rather than repetitive pattern
+editing.
+
+> Spend less time managing patterns and more time making music.
+
+## Roadmap
+
+Planned ideas include:
+
+-   Per-channel output trim / mixer view
+-   Additional tape-inspired workflow improvements
+-   Optional UI quality-of-life enhancements
+-   More hidden easter eggs
+
+------------------------------------------------------------------------
+
+FT2-Tapehead Edition is developed with respect for the original
+FastTracker II workflow and the FT2 Clone project. The goal is evolution
+through optional workflow enhancements---not replacing what made FT2
+great.
