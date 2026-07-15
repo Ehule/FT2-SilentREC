@@ -1,16 +1,18 @@
+
 # FT2-Tapehead Edition
 
 > **Compose like a tracker. Think like a tape machine.**
 
-**FT2-Tapehead Edition** is a workflow-focused fork of the FastTracker
-II Clone that reimagines tracker composition through the lens of
-tape-machine recording. It preserves the classic FastTracker II
-interface while introducing optional tools that reduce repetitive
-editing and encourage improvisation.
+**FT2-Tapehead Edition** is a workflow-focused fork of **FT2 Clone** by **8bitbubsy**, inspired by the original **FastTracker II** by Triton Productions.
+
+It reimagines tracker composition through the lens of tape-machine recording while preserving the classic FastTracker II interface and philosophy.
+
 
 The goal is not to redesign FastTracker II---it is to preserve its
 speed, familiarity, and philosophy while removing repetitive actions
 that interrupt creative flow.
+
+
 
 ## Features
 
@@ -87,3 +89,48 @@ FT2-Tapehead Edition is developed with respect for the original
 FastTracker II workflow and the FT2 Clone project. The goal is evolution
 through optional workflow enhancements---not replacing what made FT2
 great.
+
+## Building
+
+FT2-Tapehead Edition can be built on both Linux and Windows using the included build script.
+
+### Linux
+
+Install the required development packages for your distribution, then run:
+
+```bash
+./make-linux.sh
+```
+
+The compiled executable will be placed in:
+
+```text
+release/other/ft2-clone
+```
+
+### Windows (MSYS2)
+
+Install MSYS2 and the required MinGW development packages.
+
+Open the **MSYS2 MinGW 64-bit** shell, clone the repository or navigate to your existing checkout, then run:
+
+```bash
+./make-linux.sh
+```
+
+The compiled executable will be placed in:
+
+```text
+release/other/
+```
+
+The same build script is used on Linux and Windows through the MSYS2 environment.
+
+## Acknowledgements
+
+- Original **FastTracker II** by **Triton Productions**
+- **FT2 Clone** by **8bitbubsy**
+- **FT2-Tapehead Edition** design, testing, and project direction by **Ehule**
+- Development assistance, code-patch generation, debugging support, and documentation assistance provided with **OpenAI ChatGPT**
+
+FT2-Tapehead Edition builds upon FT2 Clone with optional workflow enhancements focused on improvisation, continuous recording, and tape-inspired composition.
