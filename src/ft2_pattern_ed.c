@@ -1514,6 +1514,32 @@ void pbPosEdPosDown(void)
 	decSongPos();
 }
 
+static void inheritPatternLengthIfUnused(uint8_t oldPatt, uint8_t newPatt);
+
+static int16_t findUnusedPattern(void)
+{
+	for (int16_t pattNum = 0; pattNum < MAX_PATTERNS; pattNum++)
+	{
+		if (pattern[pattNum] != NULL)
+			continue;
+
+		bool referenced = false;
+		for (uint16_t i = 0; i < song.songLength; i++)
+		{
+			if (song.orders[i] == pattNum)
+			{
+				referenced = true;
+				break;
+			}
+		}
+
+		if (!referenced)
+			return pattNum;
+	}
+
+	return -1;
+}
+
 void pbPosEdIns(void)
 {
 	if (song.songLength >= 255)
@@ -1521,15 +1547,47 @@ void pbPosEdIns(void)
 
 	lockMixerCallback();
 
-	const uint8_t oldPatt = song.orders[song.songPos];
-	for (uint16_t i = 0; i < 255-song.songPos; i++)
-		song.orders[255-i] = song.orders[254-i];
-	song.orders[song.songPos] = oldPatt;
+	if (config.specialFlags2 & INP_MODE)
+	{
+		const int16_t unusedPatt = findUnusedPattern();
+		if (unusedPatt < 0)
+		{
+			unlockMixerCallback();
+			return;
+		}
 
-	song.songLength++;
+		const uint8_t oldPatt = song.orders[song.songPos];
+		const uint8_t newPatt = (uint8_t)unusedPatt;
+		const uint16_t newSongPos = song.songPos + 1;
+
+		/*
+		** Insert the new order after the current position.
+		** song.songLength is the first unused order index here.
+		*/
+		for (int32_t i = song.songLength; i > newSongPos; i--)
+			song.orders[i] = song.orders[i-1];
+
+		inheritPatternLengthIfUnused(oldPatt, newPatt);
+		song.orders[newSongPos] = newPatt;
+		song.songLength++;
+
+		setSongPos(newSongPos, -1, DONT_RESET_SONG_TICK);
+	}
+	else
+	{
+		/* Original FT2 Insert behavior: duplicate the current order. */
+		const uint8_t oldPatt = song.orders[song.songPos];
+
+		for (uint16_t i = 0; i < 255-song.songPos; i++)
+			song.orders[255-i] = song.orders[254-i];
+
+		song.orders[song.songPos] = oldPatt;
+		song.songLength++;
+	}
 
 	ui.updatePosSections = true;
 	ui.updatePosEdScrollBar = true;
+	ui.updatePatternEditor = true;
 	setSongModifiedFlag();
 
 	unlockMixerCallback();

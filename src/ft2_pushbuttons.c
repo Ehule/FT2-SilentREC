@@ -421,6 +421,12 @@ static uint32_t tmpCounter;
 
 void drawPushButton(uint16_t pushButtonID)
 {
+	if (pushButtonID == PB_POSED_INS)
+	{
+		pushButtons[PB_POSED_INS].caption =
+			(config.specialFlags2 & INP_MODE) ? "INP" : "Ins.";
+	}
+
 	uint16_t textX, textY, textW;
 
 	ASSERT(pushButtonID < NUM_PUSHBUTTONS);

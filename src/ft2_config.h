@@ -75,6 +75,7 @@ enum
 	USE_OS_MOUSE_POINTER = 8,
 	PRECISE_BPM = 16,
 	SILENT_REC_ENTRY = 32,
+	INP_MODE = 64,
 
 	// windowFlags
 	WINSIZE_AUTO = 1,
@@ -261,6 +262,7 @@ void cbFileOverwriteWarn(void);
 void cbMultiChanRec(void);
 void cbSilentRecEntry(void);
 void cbInheritPattLen(void);
+void cbInpMode(void);
 void cbMultiChanKeyJazz(void);
 void cbMultiChanEdit(void);
 void cbRecKeyOff(void);

@@ -108,6 +108,7 @@ checkBox_t checkBoxes[NUM_CHECKBOXES] =
 	{ 212,  41, 149, 12, cbFileOverwriteWarn },
 	{ 500,	93, 118, 12, cbSilentRecEntry },
 	{ 560, 145,  40, 12, cbInheritPattLen },
+	{ 595, 145,  35, 12, cbInpMode },
 	{ 212,  68, 130, 12, cbMultiChanRec },
 	{ 212,  81, 157, 12, cbMultiChanKeyJazz },
 	{ 212,  94, 114, 12, cbMultiChanEdit },
