@@ -1540,6 +1540,41 @@ static int16_t findUnusedPattern(void)
 	return -1;
 }
 
+bool insertNewPatternAfterCurrentSongPos(bool selectNewPosition)
+{
+	if (song.songLength >= 255)
+		return false;
+
+	const int16_t unusedPatt = findUnusedPattern();
+	if (unusedPatt < 0)
+		return false;
+
+	const uint8_t oldPatt = song.orders[song.songPos];
+	const uint8_t newPatt = (uint8_t)unusedPatt;
+	const uint16_t newSongPos = song.songPos + 1;
+
+	/*
+	** Insert a fresh order after the current position. At the end of the
+	** song this simply appends; in the middle it shifts later orders right.
+	*/
+	for (int32_t i = song.songLength; i > newSongPos; i--)
+		song.orders[i] = song.orders[i-1];
+
+	inheritPatternLengthIfUnused(oldPatt, newPatt);
+	song.orders[newSongPos] = newPatt;
+	song.songLength++;
+
+	if (selectNewPosition)
+		setSongPos(newSongPos, -1, DONT_RESET_SONG_TICK);
+
+	ui.updatePosSections = true;
+	ui.updatePosEdScrollBar = true;
+	ui.updatePatternEditor = true;
+	setSongModifiedFlag();
+
+	return true;
+}
+
 void pbPosEdIns(void)
 {
 	if (song.songLength >= 255)
@@ -1549,29 +1584,7 @@ void pbPosEdIns(void)
 
 	if (config.specialFlags2 & INP_MODE)
 	{
-		const int16_t unusedPatt = findUnusedPattern();
-		if (unusedPatt < 0)
-		{
-			unlockMixerCallback();
-			return;
-		}
-
-		const uint8_t oldPatt = song.orders[song.songPos];
-		const uint8_t newPatt = (uint8_t)unusedPatt;
-		const uint16_t newSongPos = song.songPos + 1;
-
-		/*
-		** Insert the new order after the current position.
-		** song.songLength is the first unused order index here.
-		*/
-		for (int32_t i = song.songLength; i > newSongPos; i--)
-			song.orders[i] = song.orders[i-1];
-
-		inheritPatternLengthIfUnused(oldPatt, newPatt);
-		song.orders[newSongPos] = newPatt;
-		song.songLength++;
-
-		setSongPos(newSongPos, -1, DONT_RESET_SONG_TICK);
+		insertNewPatternAfterCurrentSongPos(true);
 	}
 	else
 	{
@@ -1583,12 +1596,12 @@ void pbPosEdIns(void)
 
 		song.orders[song.songPos] = oldPatt;
 		song.songLength++;
-	}
 
-	ui.updatePosSections = true;
-	ui.updatePosEdScrollBar = true;
-	ui.updatePatternEditor = true;
-	setSongModifiedFlag();
+		ui.updatePosSections = true;
+		ui.updatePosEdScrollBar = true;
+		ui.updatePatternEditor = true;
+		setSongModifiedFlag();
+	}
 
 	unlockMixerCallback();
 }

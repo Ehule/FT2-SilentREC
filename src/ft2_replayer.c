@@ -2325,10 +2325,25 @@ static void getNextPos(void)
 				song.songPos = 0;
 				bxxOverflow = false;
 			}
-			else if (++song.songPos >= song.songLength)
+			else
 			{
-				editor.wavReachedEndFlag = true;
-				song.songPos = song.songLoopStart;
+				/*
+				** APG extends the song immediately before Record Song would
+				** otherwise wrap from its final order back to the loop start.
+				*/
+				if (playMode == PLAYMODE_RECSONG &&
+					(config.specialFlags2 & INP_MODE) &&
+					(config.specialFlags2 & AUTO_PATT_GEN) &&
+					song.songPos == song.songLength-1)
+				{
+					insertNewPatternAfterCurrentSongPos(false);
+				}
+
+				if (++song.songPos >= song.songLength)
+				{
+					editor.wavReachedEndFlag = true;
+					song.songPos = song.songLoopStart;
+				}
 			}
 
 			ASSERT(song.songPos <= 255);

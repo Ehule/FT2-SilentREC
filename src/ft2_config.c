@@ -1024,6 +1024,8 @@ static void setConfigMiscCheckButtonStates(void)
 		(config.specialFlags & INHERIT_PATT_LEN) != 0;
 	checkBoxes[CB_CONF_INP_MODE].checked =
 		(config.specialFlags2 & INP_MODE) != 0;
+	checkBoxes[CB_CONF_AUTO_PATT_GEN].checked =
+		(config.specialFlags2 & AUTO_PATT_GEN) != 0;
 	checkBoxes[CB_CONF_MULTICHAN_REC].checked = config.multiRec;
 	checkBoxes[CB_CONF_MULTICHAN_JAZZ].checked = config.multiKeyJazz;
 	checkBoxes[CB_CONF_MULTICHAN_EDIT].checked = config.multiEdit;
@@ -1052,6 +1054,12 @@ static void setConfigMiscCheckButtonStates(void)
 	showCheckBox(CB_CONF_SILENT_REC_ENTRY);
 	showCheckBox(CB_CONF_INHERIT_PATT_LEN);
 	showCheckBox(CB_CONF_INP_MODE);
+
+	if (config.specialFlags2 & INP_MODE)
+		showCheckBox(CB_CONF_AUTO_PATT_GEN);
+	else
+		hideCheckBox(CB_CONF_AUTO_PATT_GEN);
+
 	showCheckBox(CB_CONF_MULTICHAN_REC);
 	showCheckBox(CB_CONF_MULTICHAN_JAZZ);
 	showCheckBox(CB_CONF_MULTICHAN_EDIT);
@@ -1333,6 +1341,7 @@ void showConfigScreen(void)
 			textOutShadow(516,  95, PAL_FORGRND, PAL_DSKTOP2, "Silent record");
 			textOutShadow(576, 147, PAL_FORGRND, PAL_DSKTOP2, "IPL");
 			textOutShadow(611, 147, PAL_FORGRND, PAL_DSKTOP2, "INP");
+			textOutShadow(576, 134, PAL_FORGRND, PAL_DSKTOP2, "APG");
 
 			textOutShadow(114,  46, PAL_FORGRND, PAL_DSKTOP2, "Window size:");
 			textOutShadow(130,  59, PAL_FORGRND, PAL_DSKTOP2, "Auto fit");
@@ -1508,6 +1517,7 @@ void hideConfigScreen(void)
 	hideCheckBox(CB_CONF_SILENT_REC_ENTRY);
 	hideCheckBox(CB_CONF_INHERIT_PATT_LEN);
 	hideCheckBox(CB_CONF_INP_MODE);
+	hideCheckBox(CB_CONF_AUTO_PATT_GEN);
 	hideCheckBox(CB_CONF_MULTICHAN_REC);
 	hideCheckBox(CB_CONF_MULTICHAN_JAZZ);
 	hideCheckBox(CB_CONF_MULTICHAN_EDIT);
@@ -2104,16 +2114,49 @@ void cbInpMode(void)
 {
 	config.specialFlags2 ^= INP_MODE;
 
+	/*
+	** APG depends on INP. Turning INP off must also disarm APG.
+	*/
+	if (!(config.specialFlags2 & INP_MODE))
+		config.specialFlags2 &= ~AUTO_PATT_GEN;
+
 	checkBoxes[CB_CONF_INP_MODE].checked =
 		(config.specialFlags2 & INP_MODE) != 0;
+	checkBoxes[CB_CONF_AUTO_PATT_GEN].checked =
+		(config.specialFlags2 & AUTO_PATT_GEN) != 0;
 
 	if (ui.configScreenShown &&
 		editor.currConfigScreen == CONFIG_SCREEN_MISCELLANEOUS)
 	{
 		drawCheckBox(CB_CONF_INP_MODE);
+
+		if (config.specialFlags2 & INP_MODE)
+			showCheckBox(CB_CONF_AUTO_PATT_GEN);
+		else
+			hideCheckBox(CB_CONF_AUTO_PATT_GEN);
 	}
 
 	drawPushButton(PB_POSED_INS);
+	drawPushButton(PB_RECORD_SONG);
+}
+
+void cbAutoPattGen(void)
+{
+	if (!(config.specialFlags2 & INP_MODE))
+		return;
+
+	config.specialFlags2 ^= AUTO_PATT_GEN;
+
+	checkBoxes[CB_CONF_AUTO_PATT_GEN].checked =
+		(config.specialFlags2 & AUTO_PATT_GEN) != 0;
+
+	if (ui.configScreenShown &&
+		editor.currConfigScreen == CONFIG_SCREEN_MISCELLANEOUS)
+	{
+		drawCheckBox(CB_CONF_AUTO_PATT_GEN);
+	}
+
+	drawPushButton(PB_RECORD_SONG);
 }
 
 void cbMultiChanRec(void)

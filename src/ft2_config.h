@@ -76,6 +76,7 @@ enum
 	PRECISE_BPM = 16,
 	SILENT_REC_ENTRY = 32,
 	INP_MODE = 64,
+	AUTO_PATT_GEN = 128,
 
 	// windowFlags
 	WINSIZE_AUTO = 1,
@@ -263,6 +264,7 @@ void cbMultiChanRec(void);
 void cbSilentRecEntry(void);
 void cbInheritPattLen(void);
 void cbInpMode(void);
+void cbAutoPattGen(void);
 void cbMultiChanKeyJazz(void);
 void cbMultiChanEdit(void);
 void cbRecKeyOff(void);

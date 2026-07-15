@@ -427,6 +427,32 @@ void drawPushButton(uint16_t pushButtonID)
 			(config.specialFlags2 & INP_MODE) ? "INP" : "Ins.";
 	}
 
+	if (pushButtonID == PB_RECORD_SONG)
+	{
+		static char *originalCaption;
+		static char *originalCaption2;
+		static bool originalCaptionsStored;
+
+		if (!originalCaptionsStored)
+		{
+			originalCaption = pushButtons[PB_RECORD_SONG].caption;
+			originalCaption2 = pushButtons[PB_RECORD_SONG].caption2;
+			originalCaptionsStored = true;
+		}
+
+		if ((config.specialFlags2 & INP_MODE) &&
+			(config.specialFlags2 & AUTO_PATT_GEN))
+		{
+			pushButtons[PB_RECORD_SONG].caption = "REC+";
+			pushButtons[PB_RECORD_SONG].caption2 = NULL;
+		}
+		else
+		{
+			pushButtons[PB_RECORD_SONG].caption = originalCaption;
+			pushButtons[PB_RECORD_SONG].caption2 = originalCaption2;
+		}
+	}
+
 	uint16_t textX, textY, textW;
 
 	ASSERT(pushButtonID < NUM_PUSHBUTTONS);

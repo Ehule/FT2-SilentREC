@@ -109,6 +109,7 @@ checkBox_t checkBoxes[NUM_CHECKBOXES] =
 	{ 500,	93, 118, 12, cbSilentRecEntry },
 	{ 560, 145,  40, 12, cbInheritPattLen },
 	{ 595, 145,  35, 12, cbInpMode },
+	{ 560, 132,  45, 12, cbAutoPattGen },
 	{ 212,  68, 130, 12, cbMultiChanRec },
 	{ 212,  81, 157, 12, cbMultiChanKeyJazz },
 	{ 212,  94, 114, 12, cbMultiChanEdit },
