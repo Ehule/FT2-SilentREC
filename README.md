@@ -108,23 +108,20 @@ The compiled executable will be placed in:
 release/other/ft2-clone
 ```
 
-### Windows (MSYS2)
+### Windows
 
-Install MSYS2 and the required MinGW development packages.
+FT2-Tapehead Edition uses the included Visual Studio solution for Windows builds.
 
-Open the **MSYS2 MinGW 64-bit** shell, clone the repository or navigate to your existing checkout, then run:
+1. Install **Visual Studio 2026 Community**.
+2. Install the **Desktop development with C++** workload.
+3. Open `vs2026_project/ft2-clone.slnx`.
+4. Select the **Release** configuration.
+5. Select the **x64** platform.
+6. Build the solution.
 
-```bash
-./make-linux.sh
-```
+If Visual Studio reports that the Windows SDK is missing, change the project to use the SDK version installed on your system.
 
-The compiled executable will be placed in:
-
-```text
-release/other/
-```
-
-The same build script is used on Linux and Windows through the MSYS2 environment.
+The compiled executable will be generated in the Visual Studio output directory.
 
 ## Acknowledgements
 
