@@ -1020,6 +1020,8 @@ static void setConfigMiscCheckButtonStates(void)
 	checkBoxes[CB_CONF_FILE_OVERWRITE_WARN].checked = config.cfg_OverwriteWarning;
 	checkBoxes[CB_CONF_SILENT_REC_ENTRY].checked =
 		(config.specialFlags2 & SILENT_REC_ENTRY) != 0;
+	checkBoxes[CB_CONF_INHERIT_PATT_LEN].checked =
+		(config.specialFlags & INHERIT_PATT_LEN) != 0;
 	checkBoxes[CB_CONF_MULTICHAN_REC].checked = config.multiRec;
 	checkBoxes[CB_CONF_MULTICHAN_JAZZ].checked = config.multiKeyJazz;
 	checkBoxes[CB_CONF_MULTICHAN_EDIT].checked = config.multiEdit;
@@ -1046,6 +1048,7 @@ static void setConfigMiscCheckButtonStates(void)
 	showCheckBox(CB_CONF_KILL_NOTES_AT_STOP);
 	showCheckBox(CB_CONF_FILE_OVERWRITE_WARN);
 	showCheckBox(CB_CONF_SILENT_REC_ENTRY);
+	showCheckBox(CB_CONF_INHERIT_PATT_LEN);
 	showCheckBox(CB_CONF_MULTICHAN_REC);
 	showCheckBox(CB_CONF_MULTICHAN_JAZZ);
 	showCheckBox(CB_CONF_MULTICHAN_EDIT);
@@ -1325,6 +1328,7 @@ void showConfigScreen(void)
 			textOutShadow(413,  62, PAL_FORGRND, PAL_DSKTOP2, "Patterns");
 			textOutShadow(413,  77, PAL_FORGRND, PAL_DSKTOP2, "Tracks");
 			textOutShadow(516,  95, PAL_FORGRND, PAL_DSKTOP2, "Silent record");
+			textOutShadow(576, 147, PAL_FORGRND, PAL_DSKTOP2, "IPL");
 
 			textOutShadow(114,  46, PAL_FORGRND, PAL_DSKTOP2, "Window size:");
 			textOutShadow(130,  59, PAL_FORGRND, PAL_DSKTOP2, "Auto fit");
@@ -1498,6 +1502,7 @@ void hideConfigScreen(void)
 	hideCheckBox(CB_CONF_KILL_NOTES_AT_STOP);
 	hideCheckBox(CB_CONF_FILE_OVERWRITE_WARN);
 	hideCheckBox(CB_CONF_SILENT_REC_ENTRY);
+	hideCheckBox(CB_CONF_INHERIT_PATT_LEN);
 	hideCheckBox(CB_CONF_MULTICHAN_REC);
 	hideCheckBox(CB_CONF_MULTICHAN_JAZZ);
 	hideCheckBox(CB_CONF_MULTICHAN_EDIT);
@@ -2076,6 +2081,20 @@ void cbSilentRecEntry(void)
     }
     ui.updatePosSections = true;
 }
+void cbInheritPattLen(void)
+{
+	config.specialFlags ^= INHERIT_PATT_LEN;
+
+	checkBoxes[CB_CONF_INHERIT_PATT_LEN].checked =
+		(config.specialFlags & INHERIT_PATT_LEN) != 0;
+
+	if (ui.configScreenShown &&
+		editor.currConfigScreen == CONFIG_SCREEN_MISCELLANEOUS)
+	{
+		drawCheckBox(CB_CONF_INHERIT_PATT_LEN);
+	}
+}
+
 void cbMultiChanRec(void)
 {
 	config.multiRec ^= 1;

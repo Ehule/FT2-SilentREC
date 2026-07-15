@@ -1570,6 +1570,32 @@ void pbPosEdDel(void)
 	setSongModifiedFlag();
 }
 
+static bool patternIsReferencedElsewhere(uint8_t pattNum)
+{
+	for (uint16_t i = 0; i < song.songLength; i++)
+	{
+		if (i != song.songPos && song.orders[i] == pattNum)
+			return true;
+	}
+
+	return false;
+}
+
+static void inheritPatternLengthIfUnused(uint8_t oldPatt, uint8_t newPatt)
+{
+	if (!(config.specialFlags & INHERIT_PATT_LEN))
+		return;
+
+	/*
+	** An unallocated pattern can still be referenced elsewhere in the order
+	** list. Do not unexpectedly change the length of an existing song pattern.
+	*/
+	if (pattern[newPatt] != NULL || patternIsReferencedElsewhere(newPatt))
+		return;
+
+	patternNumRows[newPatt] = patternNumRows[oldPatt];
+}
+
 void pbPosEdPattUp(void)
 {
 	if (song.orders[song.songPos] == 255)
@@ -1578,8 +1604,13 @@ void pbPosEdPattUp(void)
 	lockMixerCallback();
 	if (song.orders[song.songPos] < 255)
 	{
-		song.orders[song.songPos]++;
-		song.pattNum = song.orders[song.songPos];
+		const uint8_t oldPatt = song.orders[song.songPos];
+		const uint8_t newPatt = oldPatt + 1;
+
+		inheritPatternLengthIfUnused(oldPatt, newPatt);
+
+		song.orders[song.songPos] = newPatt;
+		song.pattNum = newPatt;
 
 		song.currNumRows = patternNumRows[song.pattNum];
 		if (song.row >= song.currNumRows)
@@ -1609,8 +1640,13 @@ void pbPosEdPattDown(void)
 	lockMixerCallback();
 	if (song.orders[song.songPos] > 0)
 	{
-		song.orders[song.songPos]--;
-		song.pattNum = song.orders[song.songPos];
+		const uint8_t oldPatt = song.orders[song.songPos];
+		const uint8_t newPatt = oldPatt - 1;
+
+		inheritPatternLengthIfUnused(oldPatt, newPatt);
+
+		song.orders[song.songPos] = newPatt;
+		song.pattNum = newPatt;
 
 		song.currNumRows = patternNumRows[song.pattNum];
 		if (song.row >= song.currNumRows)

@@ -65,7 +65,7 @@ enum
 	BUFFSIZE_512 = 8,
 	BUFFSIZE_1024 = 16,
 	BUFFSIZE_2048 = 32,
-	// 64 is free for use
+	INHERIT_PATT_LEN = 64,
 	LINED_SCOPES = 128,
 
 	// specialFlags2
@@ -260,6 +260,7 @@ void cbKillNotesAtStop(void);
 void cbFileOverwriteWarn(void);
 void cbMultiChanRec(void);
 void cbSilentRecEntry(void);
+void cbInheritPattLen(void);
 void cbMultiChanKeyJazz(void);
 void cbMultiChanEdit(void);
 void cbRecKeyOff(void);
