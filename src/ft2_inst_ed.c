@@ -15,6 +15,7 @@
 #include "scopes/ft2_scopes.h"
 #include "ft2_sample_ed.h"
 #include "ft2_mouse.h"
+#include "ft2_keyboard.h"
 #include "ft2_video.h"
 #include "ft2_sample_loader.h"
 #include "ft2_diskop.h"
@@ -2714,6 +2715,8 @@ void toggleInstEditorExt(void)
 		showInstEditorExt();
 }
 
+static void clearInstrumentFromSwitcher(int16_t insNum);
+
 static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 {
 	uint8_t newEntry;
@@ -2733,6 +2736,14 @@ static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 
 			// destination instrument
 			newEntry = (editor.instrBankOffset + 1) + (uint8_t)((mouse.y - 5) / 11);
+
+			/* Tape Head Edition: clear clicked instrument without selecting it. */
+			if (mouse.rightButtonPressed && keyb.leftShiftPressed)
+			{
+				clearInstrumentFromSwitcher(newEntry);
+				return true;
+			}
+
 			if (editor.curInstr != newEntry)
 			{
 				editor.curInstr = newEntry;
@@ -2809,6 +2820,52 @@ static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 	return false;
 }
 
+/*
+** Tape Head Edition:
+**
+** Shift+right-click clears the clicked instrument without changing the
+** currently selected instrument.
+*/
+static void clearInstrumentFromSwitcher(int16_t insNum)
+{
+	if (insNum <= 0 || insNum > MAX_INST)
+		return;
+
+	/*
+	** A slot can have a name even when its instrument structure is NULL.
+	** Ignore it only when both the structure and name are empty.
+	*/
+	if (instr[insNum] == NULL && song.instrName[insNum][0] == '\0')
+		return;
+
+	if (okBox(1, "System request", "Clear instrument?", NULL) != 1)
+		return;
+
+	freeInstr(insNum);
+	memset(song.instrName[insNum], 0, sizeof (song.instrName[insNum]));
+
+	if (insNum == editor.curInstr)
+	{
+		/*
+		** The current sample was deleted, so its editor must be refreshed.
+		*/
+		updateNewInstrument();
+	}
+	else
+	{
+		/*
+		** Redraw only the instrument list so the current sample editor,
+		** zoom, scroll position and visible selection remain untouched.
+		*/
+		updateTextBoxPointers();
+
+		if (ui.instrSwitcherShown)
+			updateInstrumentSwitcher();
+	}
+
+	setSongModifiedFlag();
+}
+
 static bool testInstrSwitcherExtended(void) // Welcome to the Jungle 2 - The Happening
 {
 	uint8_t newEntry;
@@ -2848,6 +2905,14 @@ static bool testInstrSwitcherExtended(void) // Welcome to the Jungle 2 - The Hap
 
 			// destination instrument
 			newEntry = (editor.instrBankOffset + 5) + (uint8_t)((mouse.y - 5) / 11);
+
+			/* Tape Head Edition: clear clicked instrument without selecting it. */
+			if (mouse.rightButtonPressed && keyb.leftShiftPressed)
+			{
+				clearInstrumentFromSwitcher(newEntry);
+				return true;
+			}
+
 			if (editor.curInstr != newEntry)
 			{
 				editor.curInstr = newEntry;
@@ -2890,6 +2955,14 @@ static bool testInstrSwitcherExtended(void) // Welcome to the Jungle 2 - The Hap
 
 			// destination instrument
 			newEntry = (editor.instrBankOffset + 1) + (uint8_t)((mouse.y - 5) / 11);
+
+			/* Tape Head Edition: clear clicked instrument without selecting it. */
+			if (mouse.rightButtonPressed && keyb.leftShiftPressed)
+			{
+				clearInstrumentFromSwitcher(newEntry);
+				return true;
+			}
+
 			if (editor.curInstr != newEntry)
 			{
 				editor.curInstr = newEntry;

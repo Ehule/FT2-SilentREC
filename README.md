@@ -156,4 +156,114 @@ This functions as a simple gain control for live mixing without modifying any pa
 
 All live-performance features are designed so that existing FastTracker II modules remain fully compatible with stock FT2. These controls affect only live playback and monitoring—they do not modify the XM file format or alter saved song data.
 
+<!-- TAPEHEAD-ADDENDUM-START -->
 
+---
+
+# FT2 Tape Head Edition Addendum
+
+FT2 Tape Head Edition is a preservation-minded fork of FastTracker II Clone. Its additions are intended to extend the original tracker workflow without preventing songs from being opened, edited, or translated back to stock FastTracker II conventions.
+
+The guiding principle is simple:
+
+> Add faster and more expressive ways to work while keeping the underlying tracker recognizable, portable, and compatible.
+
+## Tape Head Edition features
+
+### Silent Record Entry
+
+Notes and events can be entered while recording without automatically auditioning the entered note.
+
+This supports quiet editing, live playback preparation, and workflows where entering data should not interrupt or layer over the currently playing material.
+
+### REC+ indicator
+
+A dedicated visual recording indicator distinguishes the enhanced Tape Head recording behavior from ordinary editing and playback states.
+
+### Inherit Pattern Length
+
+Newly inserted patterns can inherit the length of the current pattern instead of always reverting to the stock default length.
+
+This is useful when constructing songs from groups of patterns that share unusual or extended lengths.
+
+### Performance Mute
+
+Tracks can be muted as a reversible performance control without rewriting or deleting their pattern contents.
+
+These mute states remain editing and playback metadata rather than destructive changes to the musical data.
+
+### Per-track output trim
+
+Each track can carry a simple output-level trim.
+
+The trim is designed as a non-destructive playback control. It avoids the need to edit every individual volume event merely to balance a track during composition or performance.
+
+### Play Range — Shift+S
+
+When a range is selected in the sample editor, **Shift+S** plays the selected portion directly.
+
+### Play Display — Shift+D
+
+**Shift+D** plays the sample area currently visible in the sample editor.
+
+Together, Play Range and Play Display make navigating and auditioning long recordings substantially faster.
+
+### Extract to Instrument — Shift+X
+
+When a sample range is selected, **Shift+X** copies that range into a new instrument.
+
+The extraction process:
+
+- keeps the original instrument selected;
+- preserves the visible sample range and editing context;
+- copies the selected audio into a genuinely new instrument;
+- preserves applicable sample settings and loop information;
+- removes filename extensions from generated instrument names;
+- creates sequential names such as `Recording-01`, `Recording-02`, and so on;
+- fills suitable empty instrument slots before appending after occupied groups;
+- updates the instrument list immediately, including across instrument banks;
+- reports when no free instrument slots remain.
+
+This supports a tape-like workflow in which one long master recording can be divided into many playable instruments without repeatedly saving, loading, renaming, or changing focus.
+
+### Clear Instrument — Shift+Right-click
+
+Hold **Shift** and right-click an occupied instrument slot to clear that specific instrument.
+
+The command operates on the instrument underneath the mouse pointer, not necessarily the currently selected instrument.
+
+Behavior:
+
+- a confirmation dialog is always shown before deletion;
+- empty instrument slots are ignored;
+- the clicked instrument and all of its samples, envelopes, settings, and name are removed;
+- clearing another instrument does not change the current instrument;
+- the current sample selection and editor view remain undisturbed when another instrument is cleared;
+- ordinary right-click renaming and left-click selection continue to work normally.
+
+This is intended for precise cleanup of individual extracted instruments. FT2's existing Trim and Zap operations remain more appropriate for bulk cleanup.
+
+## Extract-and-refine workflow
+
+The new sample tools are designed to work together:
+
+1. Load or record a long master sample.
+2. Navigate to a useful section.
+3. Use **Shift+D** to audition the displayed region.
+4. Select a precise range.
+5. Use **Shift+S** to audition the selection.
+6. Press **Shift+X** to extract it into a new instrument.
+7. Continue working on the master without changing instruments.
+8. Shift+right-click any unwanted extracted instrument and confirm its removal.
+
+This creates a fast, non-disruptive workflow resembling work with tape, hardware samplers, and dedicated phrase workstations.
+
+## Compatibility philosophy
+
+Tape Head Edition should preserve ordinary FT2/XM musical data wherever practical.
+
+Features that exist only as playback or editing conveniences should remain non-destructive. Material created in Tape Head Edition should be straightforward to prepare for stock FT2 by baking or translating enhanced behavior when necessary.
+
+The project does not aim to replace FastTracker II with a modern DAW. It aims to explore how far the original tracker design can be extended while retaining its speed, character, limitations, and historical identity.
+
+<!-- TAPEHEAD-ADDENDUM-END -->

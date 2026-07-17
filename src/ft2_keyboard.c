@@ -1173,6 +1173,17 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 
 		case SDLK_x:
 		{
+			/*
+			** Tape Head Edition: extract the selected sample range to a
+			** newly allocated instrument while remaining on the master.
+			*/
+			if (keyb.leftShiftPressed && !keyb.leftCtrlPressed &&
+				!keyb.leftAltPressed)
+			{
+				extractSmpRangeToInstr();
+				return true;
+			}
+
 #ifdef __APPLE__
 			if (keyb.leftAltPressed || keyb.leftCommandPressed)
 #else

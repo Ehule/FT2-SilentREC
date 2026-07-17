@@ -1891,6 +1891,362 @@ static int32_t sampCopyThread(void *ptr)
 	(void)ptr;
 }
 
+
+/*
+** Tape Head Edition: Shift+X - Extract selection to a new instrument
+**
+** This automates an existing FT2 workflow:
+**
+**   create instrument -> copy sample material -> crop to selection -> rename
+**
+** The source/master instrument and its sample-editor selection are never
+** changed. The newly created instrument is immediately playable, but FT2
+** remains focused on the original instrument so repeated extractions can be
+** performed quickly.
+*/
+
+static bool isExtractedChildInstr(int16_t srcInstr, int16_t testInstr)
+{
+	char baseName[23];
+	char testName[23];
+
+	memcpy(baseName, song.instrName[srcInstr], 22);
+	baseName[22] = '\0';
+
+	memcpy(testName, song.instrName[testInstr], 22);
+	testName[22] = '\0';
+
+	/* Remove trailing spaces from FT2's fixed-width instrument names. */
+	for (int32_t i = 21; i >= 0; i--)
+	{
+		if (baseName[i] == ' ' || baseName[i] == '\t')
+			baseName[i] = '\0';
+		else if (baseName[i] != '\0')
+			break;
+	}
+
+	for (int32_t i = 21; i >= 0; i--)
+	{
+		if (testName[i] == ' ' || testName[i] == '\t')
+			testName[i] = '\0';
+		else if (testName[i] != '\0')
+			break;
+	}
+
+	/* Match makeExtractInstrName(): remove a filename extension. */
+	char *dot = strrchr(baseName, '.');
+	if (dot != NULL && dot != baseName)
+		*dot = '\0';
+
+	if (baseName[0] == '\0')
+		strcpy(baseName, "Instrument");
+
+	/*
+	** Extracted names always end in "-<decimal number>".
+	** Locate the final dash so dashes inside the master name are harmless.
+	*/
+	char *dash = strrchr(testName, '-');
+	if (dash == NULL || dash == testName || dash[1] == '\0')
+		return false;
+
+	const char *digit = dash + 1;
+	while (*digit != '\0')
+	{
+		if (*digit < '0' || *digit > '9')
+			return false;
+
+		digit++;
+	}
+
+	const size_t suffixLen = strlen(dash);
+	size_t expectedBaseLen = strlen(baseName);
+
+	/*
+	** makeExtractInstrName() shortens the base when necessary so the suffix
+	** still fits inside FT2's 22-character instrument-name field.
+	*/
+	if (expectedBaseLen + suffixLen > 22)
+		expectedBaseLen = 22 - suffixLen;
+
+	const size_t actualBaseLen = (size_t)(dash - testName);
+	if (actualBaseLen != expectedBaseLen)
+		return false;
+
+	return !strncmp(testName, baseName, expectedBaseLen);
+}
+
+static int16_t findExtractDestinationInstr(int16_t srcInstr)
+{
+	if (srcInstr >= MAX_INST)
+		return -1;
+
+	const int16_t firstAfterSource = srcInstr + 1;
+
+	/* The ideal case: place the first extraction directly below its master. */
+	if (instr[firstAfterSource] == NULL)
+		return firstAfterSource;
+
+	/*
+	** If the instruments directly below the master are previous extractions
+	** from that same master, walk through that extraction run and use the
+	** first empty slot following it.
+	*/
+	if (isExtractedChildInstr(srcInstr, firstAfterSource))
+	{
+		for (int16_t i = firstAfterSource + 1; i <= MAX_INST; i++)
+		{
+			if (instr[i] == NULL)
+				return i;
+
+			/*
+			** An unrelated occupied instrument ends the master's reserved
+			** extraction area. Fall back to appending at the end.
+			*/
+			if (!isExtractedChildInstr(srcInstr, i))
+				break;
+		}
+	}
+
+	/*
+	** The source is immediately blocked by an unrelated instrument, or its
+	** extraction run has reached another populated instrument. Append after
+	** the highest occupied instrument.
+	*/
+	int16_t highestOccupied = 0;
+
+	for (int16_t i = 1; i <= MAX_INST; i++)
+	{
+		if (instr[i] != NULL)
+			highestOccupied = i;
+	}
+
+	if (highestOccupied < MAX_INST)
+		return highestOccupied + 1;
+
+	return -1;
+}
+
+static bool extractInstrNameExists(const char *name)
+{
+	for (int16_t i = 1; i <= MAX_INST; i++)
+	{
+		if (!strncmp(song.instrName[i], name, 22))
+			return true;
+	}
+
+	return false;
+}
+
+static void makeExtractInstrName(int16_t srcInstr, char *dstName)
+{
+	char baseName[23];
+	memcpy(baseName, song.instrName[srcInstr], 22);
+	baseName[22] = '\0';
+
+	/* Strip trailing spaces. */
+	for (int32_t i = 21; i >= 0; i--)
+	{
+		if (baseName[i] == ' ' || baseName[i] == '\t')
+			baseName[i] = '\0';
+		else if (baseName[i] != '\0')
+			break;
+	}
+
+	/* Strip a filename extension when the instrument was named from a file. */
+	char *dot = strrchr(baseName, '.');
+	if (dot != NULL && dot != baseName)
+		*dot = '\0';
+
+	if (baseName[0] == '\0')
+		strcpy(baseName, "Instrument");
+
+	for (int32_t number = 1; number <= 9999; number++)
+	{
+		char suffix[16];
+		snprintf(suffix, sizeof (suffix), "-%02d", number);
+
+		const size_t suffixLen = strlen(suffix);
+		size_t baseLen = strlen(baseName);
+
+		if (baseLen + suffixLen > 22)
+			baseLen = 22 - suffixLen;
+
+		memcpy(dstName, baseName, baseLen);
+		memcpy(&dstName[baseLen], suffix, suffixLen);
+		dstName[baseLen + suffixLen] = '\0';
+
+		if (!extractInstrNameExists(dstName))
+			return;
+	}
+
+	/* Extremely unlikely fallback. */
+	strcpy(dstName, "Extracted");
+}
+
+void extractSmpRangeToInstr(void)
+{
+	const int16_t srcInstr = editor.curInstr;
+	const int16_t srcSmpNum = editor.curSmp;
+
+	if (srcInstr <= 0 || instr[srcInstr] == NULL)
+		return;
+
+	sample_t *srcSmp = &instr[srcInstr]->smp[srcSmpNum];
+
+	if (srcSmp->dataPtr == NULL || srcSmp->length <= 0)
+		return;
+
+	int32_t rangeStart = smpEd_Rx1;
+	int32_t rangeEnd = smpEd_Rx2;
+
+	if (rangeStart > rangeEnd)
+	{
+		const int32_t tmp = rangeStart;
+		rangeStart = rangeEnd;
+		rangeEnd = tmp;
+	}
+
+	rangeStart = CLAMP(rangeStart, 0, srcSmp->length);
+	rangeEnd = CLAMP(rangeEnd, 0, srcSmp->length);
+
+	if (rangeEnd <= rangeStart)
+		return;
+
+	const int16_t dstInstr = findExtractDestinationInstr(srcInstr);
+	if (dstInstr < 1)
+	{
+		okBox(0, "System message", "No free instrument slots available!", NULL);
+		return;
+	}
+
+	const int32_t extractLength = rangeEnd - rangeStart;
+	const bool sample16Bit = !!(srcSmp->flags & SAMPLE_16BIT);
+
+	char newInstrName[23];
+	makeExtractInstrName(srcInstr, newInstrName);
+
+	pauseAudio();
+	unfixSample(srcSmp);
+
+	if (!allocateInstr(dstInstr))
+	{
+		fixSample(srcSmp);
+		resumeAudio();
+
+		okBox(0, "System message", "Not enough memory!", NULL);
+		return;
+	}
+
+	instr_t *srcIns = instr[srcInstr];
+	instr_t *dstIns = instr[dstInstr];
+
+	/*
+	** Preserve the source instrument's musical setup: envelopes, fadeout,
+	** vibrato and other instrument-level behavior.
+	*/
+	memcpy(dstIns, srcIns, sizeof (instr_t));
+
+	/*
+	** The memcpy above also copied sample pointers. Clear every destination
+	** sample structure before creating the extracted sample so ownership is
+	** never shared with the master instrument.
+	*/
+	memset(dstIns->smp, 0, sizeof (dstIns->smp));
+
+	/* Make the extracted recording the instrument's primary sample. */
+	memset(dstIns->note2SampleLUT, 0, sizeof (dstIns->note2SampleLUT));
+
+	sample_t *dstSmp = &dstIns->smp[0];
+
+	/*
+	** Copy the source sample settings, then clear its memory pointers before
+	** allocating independent sample storage.
+	*/
+	memcpy(dstSmp, srcSmp, sizeof (sample_t));
+	dstSmp->origDataPtr = NULL;
+	dstSmp->dataPtr = NULL;
+	dstSmp->length = extractLength;
+
+	if (!allocateSmpData(dstSmp, extractLength, sample16Bit))
+	{
+		/*
+		** The destination owns no source pointers because all destination
+		** sample structures were cleared before allocation.
+		*/
+		freeInstr(dstInstr);
+
+		fixSample(srcSmp);
+		resumeAudio();
+
+		okBox(0, "System message", "Not enough memory!", NULL);
+		return;
+	}
+
+	memcpy(
+		dstSmp->dataPtr,
+		&srcSmp->dataPtr[rangeStart << sample16Bit],
+		extractLength << sample16Bit
+	);
+
+	/*
+	** Translate a source loop into the extracted sample's coordinate space.
+	** If the original loop does not survive inside the selection, disable it.
+	*/
+	if (srcSmp->loopLength > 0)
+	{
+		const int32_t srcLoopStart = srcSmp->loopStart;
+		const int32_t srcLoopEnd = srcSmp->loopStart + srcSmp->loopLength;
+
+		int32_t clippedLoopStart = MAX(srcLoopStart, rangeStart);
+		int32_t clippedLoopEnd = MIN(srcLoopEnd, rangeEnd);
+
+		if (clippedLoopEnd > clippedLoopStart)
+		{
+			dstSmp->loopStart = clippedLoopStart - rangeStart;
+			dstSmp->loopLength = clippedLoopEnd - clippedLoopStart;
+		}
+		else
+		{
+			dstSmp->loopStart = 0;
+			dstSmp->loopLength = 0;
+			DISABLE_LOOP(dstSmp->flags);
+		}
+	}
+	else
+	{
+		dstSmp->loopStart = 0;
+		dstSmp->loopLength = 0;
+		DISABLE_LOOP(dstSmp->flags);
+	}
+
+	/* Give both the instrument and its primary sample the generated name. */
+	snprintf(song.instrName[dstInstr], sizeof (song.instrName[dstInstr]),
+		"%s", newInstrName);
+
+	snprintf(dstSmp->name, sizeof (dstSmp->name),
+		"%s", newInstrName);
+
+	fixSample(dstSmp);
+	fixSample(srcSmp);
+	resumeAudio();
+
+	/*
+	** Deliberately do not modify editor.curInstr, editor.curSmp, smpEd_Rx1,
+	** smpEd_Rx2, smpEd_ScrPos or smpEd_ViewSize.
+	*/
+	/*
+	** Redraw only the instrument switcher. A full instrument refresh would
+	** unnecessarily refresh the current sample editor and disturb the range
+	** that the user may want to extract repeatedly.
+	*/
+	updateTextBoxPointers();
+
+	if (ui.instrSwitcherShown)
+		updateInstrumentSwitcher();
+
+	setSongModifiedFlag();
+}
+
 void sampCopy(void)
 {
 	sample_t *s = getCurSample();

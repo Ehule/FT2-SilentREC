@@ -54,6 +54,7 @@ void showAll(void);
 void saveRange(void);
 void sampCut(void);
 void sampCopy(void);
+void extractSmpRangeToInstr(void);
 void sampPaste(void);
 void sampCrop(void);
 void sampXFade(void);
