@@ -859,6 +859,15 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 
 		case SDLK_d:
 		{
+			// Tape Head Edition: Shift+D plays the currently displayed
+			// portion of the sample editor.
+			if (keyb.leftShiftPressed && !keyb.leftCtrlPressed &&
+			    !keyb.leftAltPressed && ui.sampleEditorShown)
+			{
+				sampPlayDisplay();
+				return true;
+			}
+
 			if (keyb.leftAltPressed)
 			{
 				jumpToChannel(10);
