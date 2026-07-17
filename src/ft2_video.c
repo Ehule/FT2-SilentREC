@@ -179,6 +179,12 @@ static void drawFPSCounter(void)
 	charOut(164 + x, 16, PAL_FORGRND, '*');
 }
 
+#define REC_PLUS_OVERLAY_SCALE 2
+#define REC_PLUS_OVERLAY_GLYPH_H 18
+#define REC_PLUS_OVERLAY_MAX_GLYPH_W (SCREEN_W - 2)
+#define REC_PLUS_OVERLAY_PIXEL_COUNT \
+	(REC_PLUS_OVERLAY_MAX_GLYPH_W * REC_PLUS_OVERLAY_GLYPH_H)
+
 static char recPlusOverlayText[32];
 static uint32_t *recPlusOverlayBackup;
 static int32_t recPlusOverlayFrames;
@@ -212,9 +218,9 @@ static void drawRecPlusOverlay(void)
 	memcpy(video.frameBuffer, recPlusOverlayBackup,
 		SCREEN_W * SCREEN_H * sizeof (uint32_t));
 
-	const int32_t scale = 2;
-	const int32_t glyphH = 18;
-	const int32_t maxGlyphW = SCREEN_W - 2;
+	const int32_t scale = REC_PLUS_OVERLAY_SCALE;
+	const int32_t glyphH = REC_PLUS_OVERLAY_GLYPH_H;
+	const int32_t maxGlyphW = REC_PLUS_OVERLAY_MAX_GLYPH_W;
 	const int32_t srcX = 1;
 	const int32_t srcY = 1;
 
@@ -243,8 +249,8 @@ static void drawRecPlusOverlay(void)
 
 	video.palette[PAL_FORGRND] = oldForeground;
 
-	uint32_t glyphPixels[(SCREEN_W - 2) * glyphH];
-	bool glyphMask[(SCREEN_W - 2) * glyphH];
+	uint32_t glyphPixels[REC_PLUS_OVERLAY_PIXEL_COUNT];
+	bool glyphMask[REC_PLUS_OVERLAY_PIXEL_COUNT];
 
 	for (int32_t y = 0; y < glyphH; y++)
 	{
