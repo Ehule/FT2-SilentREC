@@ -131,3 +131,29 @@ The compiled executable will be generated in the Visual Studio output directory.
 - Development assistance, code-patch generation, debugging support, and documentation assistance provided with **OpenAI ChatGPT**
 
 FT2-Tapehead Edition builds upon FT2 Clone with optional workflow enhancements focused on improvisation, continuous recording, and tape-inspired composition.
+
+## Tape Head Edition Features
+
+This fork adds optional live-performance workflow improvements while remaining fully compatible with standard FastTracker II XM files.
+
+### Performance Mute
+
+**Shift + Left Click** on a scope to toggle **Performance Mute**.
+
+Unlike the original FT2 mute, Performance Mute does **not** stop the channel internally. Playback continues silently so loops, envelopes, LFOs, effects, and timing remain perfectly synchronized.
+
+Performance Mute is displayed with a **red mute indicator**.
+
+### Per-Track Output Trim
+
+Hold **Ctrl** and use the **mouse wheel** over a scope to adjust that track's output trim.
+
+This functions as a simple gain control for live mixing without modifying any pattern data.
+
+**Ctrl + Left Click** resets the trim level back to **100%**.
+
+### Design Philosophy
+
+All live-performance features are designed so that existing FastTracker II modules remain fully compatible with stock FT2. These controls affect only live playback and monitoring—they do not modify the XM file format or alter saved song data.
+
+
