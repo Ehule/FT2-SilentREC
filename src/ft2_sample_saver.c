@@ -318,7 +318,16 @@ static bool saveIFFSample(UNICHAR *filenameU, bool saveRangedData)
 	return true;
 }
 
-static bool saveWAVSample(UNICHAR *filenameU, bool saveRangedData)
+/*
+** Low-level WAV writer.
+**
+** Unlike saveWAVSample(), this helper does not depend on the currently
+** selected instrument or sample. This makes it reusable by operations
+** such as Export Sample Set, which must walk arbitrary sample slots
+** without changing the editor selection.
+*/
+static bool saveWAVSampleFromPointers(UNICHAR *filenameU, instr_t *ins,
+	sample_t *smp, bool saveRangedData)
 {
 	char *smpNamePtr;
 	int8_t *samplePtr;
@@ -327,14 +336,11 @@ static bool saveWAVSample(UNICHAR *filenameU, bool saveRangedData)
 	samplerChunk_t samplerChunk;
 	mptExtraChunk_t mptExtraChunk;
 
-	instr_t *ins = instr[editor.curInstr];
-	if (ins == NULL || ins->smp[editor.curSmp].dataPtr == NULL || ins->smp[editor.curSmp].length == 0)
+	if (ins == NULL || smp == NULL || smp->dataPtr == NULL || smp->length == 0)
 	{
 		okBoxThreadSafe(0, "System message", "The sample is empty!", NULL);
 		return false;
 	}
-
-	sample_t *smp = &ins->smp[editor.curSmp];
 
 	FILE *f = UNICHAR_FOPEN(filenameU, "wb");
 	if (f == NULL)
@@ -496,6 +502,25 @@ static bool saveWAVSample(UNICHAR *filenameU, bool saveRangedData)
 
 	setMouseBusy(false);
 	return true;
+}
+
+/*
+** Original editor-facing WAV saver.
+**
+** Keep the existing behavior for Save Sample while forwarding the actual
+** writing work to the pointer-based helper above.
+*/
+static bool saveWAVSample(UNICHAR *filenameU, bool saveRangedData)
+{
+	instr_t *ins = instr[editor.curInstr];
+	if (ins == NULL)
+	{
+		okBoxThreadSafe(0, "System message", "The sample is empty!", NULL);
+		return false;
+	}
+
+	sample_t *smp = &ins->smp[editor.curSmp];
+	return saveWAVSampleFromPointers(filenameU, ins, smp, saveRangedData);
 }
 
 static int32_t saveSampleThread(void *ptr)
