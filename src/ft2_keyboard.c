@@ -1065,6 +1065,14 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 
 		case SDLK_s:
 		{
+			// Tape Head Edition: Shift+S plays the marked sample range.
+			if (keyb.leftShiftPressed && !keyb.leftCtrlPressed &&
+			    !keyb.leftAltPressed && ui.sampleEditorShown)
+			{
+				sampPlayRange();
+				return true;
+			}
+
 			if (keyb.leftAltPressed)
 			{
 				if (ui.sampleEditorShown)
