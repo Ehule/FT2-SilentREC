@@ -1,6 +1,7 @@
 // for finding memory leaks in debug mode with Visual Studio
 #if defined _DEBUG && defined _MSC_VER
 #include <crtdbg.h>
+#include "../ft2_replayer.h"
 #endif
 
 #include <stdint.h>
@@ -17,6 +18,7 @@
 #include "../ft2_tables.h"
 #include "../ft2_structs.h"
 #include "../ft2_hpc.h"
+#include "../ft2_keyboard.h"
 #include "ft2_scopes.h"
 #include "ft2_scopedraw.h"
 
@@ -121,6 +123,53 @@ static void drawScopeNumber(uint16_t scopeXOffs, uint16_t scopeYOffs, uint8_t ch
 			charOut(scopeXOffs, scopeYOffs, PAL_MOUSEPT, '0' + (chNr / 10));
 			charOut(scopeXOffs + 7, scopeYOffs, PAL_MOUSEPT, '0' + (chNr % 10));
 		}
+	}
+}
+
+/*
+** Draw the dedicated red performance-mute graphic over the live scope.
+**
+** The graphic uses the same 162x324 layout and channel-count offsets as
+** FT2's normal mute bitmap.
+*/
+static void drawPerformanceMuteX(uint16_t scopeX, uint16_t scopeY,
+	int32_t chanLookup, uint16_t scopeLen)
+{
+	const uint16_t muteGfxLen = scopeMuteBMP_Widths[chanLookup];
+	const uint16_t muteGfxHeight = scopeMuteBMP_Heights[chanLookup];
+	const uint16_t muteGfxX =
+		scopeX + ((scopeLen - muteGfxLen) >> 1);
+	const uint16_t muteGfxY = scopeY + 6;
+
+	const uint8_t *src =
+		bmp.scopeMute + scopeMuteBMP_Offs[chanLookup];
+
+	uint32_t *dst =
+		&video.frameBuffer[(muteGfxY * SCREEN_W) + muteGfxX];
+
+	const uint32_t solidRed = RGB32(255, 24, 24);
+
+	/*
+	** Palette index 0 is the mute graphic's rectangular background.
+	** The remaining indices form the shaded X.
+	**
+	** Preserve the background through the active FT2 theme, while
+	** rendering every visible part of the X in fixed red.
+	*/
+	for (int32_t y = 0; y < muteGfxHeight; y++)
+	{
+		for (int32_t x = 0; x < muteGfxLen; x++)
+		{
+			const uint8_t pixel = src[x];
+
+			if (pixel == 0)
+				dst[x] = video.palette[0];
+			else
+				dst[x] = solidRed;
+		}
+
+		src += 162;
+		dst += SCREEN_W;
 	}
 }
 
@@ -240,6 +289,72 @@ static void channelMode(int32_t chn)
 	}
 }
 
+bool testScopesMouseWheel(bool directionUp)
+{
+	if (!ui.scopesShown)
+		return false;
+
+	if (mouse.y < 95 || mouse.y > 169 || mouse.x < 3 || mouse.x > 288)
+		return false;
+
+	// The gap between the two scope rows still belongs to the scope area.
+	if (mouse.y > 130 && mouse.y < 134)
+		return true;
+
+	const int32_t chansPerRow = (uint32_t)song.numChannels >> 1;
+	if (chansPerRow <= 0)
+		return true;
+
+	const uint16_t *scopeLens = scopeLenTab[chansPerRow-1];
+
+	int32_t i;
+	uint16_t x = 3;
+
+	for (i = 0; i < chansPerRow; i++)
+	{
+		if (mouse.x >= x && mouse.x < x+scopeLens[i])
+			break;
+
+		x += scopeLens[i]+3;
+	}
+
+	// The mouse is over the scope framework, but not an actual channel.
+	if (i == chansPerRow)
+		return true;
+
+	int32_t channelIndex = i;
+	if (mouse.y >= 134)
+		channelIndex += chansPerRow;
+
+	uint16_t trim = channelVolumeTrim[channelIndex];
+
+	// 4 units = 1.5625%, since 256 units represents 100%.
+	if (directionUp)
+	{
+		if (trim < 512-4)
+			trim += 4;
+		else
+			trim = 512;
+	}
+	else
+	{
+		if (trim > 4)
+			trim -= 4;
+		else
+			trim = 0;
+	}
+
+	channelVolumeTrim[channelIndex] = trim;
+
+	// Force the mixer and scope volume to refresh immediately,
+	// even while a note is already sustaining.
+	channel[channelIndex].status |= CS_UPDATE_VOL;
+
+	redrawScope(channelIndex);
+
+	return true;
+}
+
 bool testScopesMouseDown(void)
 {
 	int32_t i;
@@ -271,6 +386,42 @@ bool testScopesMouseDown(void)
 		int32_t chanToToggle = i;
 		if (mouse.y >= 134) // second row of scopes?
 			chanToToggle += chansPerRow; // yes, increase lookup offset
+
+		/*
+		** Shift + left click:
+		** Toggle the non-destructive performance mute.
+		*/
+		if (keyb.leftShiftPressed &&
+			mouse.leftButtonPressed && !mouse.rightButtonPressed)
+		{
+			performanceMute[chanToToggle] ^= 1;
+
+			/*
+			** Use the quick ramp to avoid an abrupt waveform discontinuity,
+			** while still making the mute feel immediate.
+			*/
+			channel[chanToToggle].status |=
+				CS_UPDATE_VOL | CS_USE_QUICK_VOLRAMP;
+
+			scope[chanToToggle].wasCleared = false;
+			redrawScope(chanToToggle);
+			return true;
+		}
+
+		/*
+		** Ctrl + left click:
+		** Reset this channel's output trim to unity/100%.
+		*/
+		if (keyb.leftCtrlPressed &&
+			mouse.leftButtonPressed && !mouse.rightButtonPressed)
+		{
+			channelVolumeTrim[chanToToggle] = 256;
+			channel[chanToToggle].status |= CS_UPDATE_VOL;
+
+			scope[chanToToggle].wasCleared = false;
+			redrawScope(chanToToggle);
+			return true;
+		}
 
 		channelMode(chanToToggle);
 		return true;
@@ -458,9 +609,22 @@ void drawScopes(void)
 			}
 		}
 
+		/*
+		** Performance mute is an overlay rather than a replacement for the
+		** scope. The waveform therefore remains active beneath the red X.
+		*/
+		if (performanceMute[i])
+			drawPerformanceMuteX(
+				scopeXOffs, scopeYOffs,
+				chansPerRow - 1, scopeDrawLen
+			);
+
 		// draw channel numbering (if enabled)
 		if (config.ptnChnNumbers)
-			drawScopeNumber(scopeXOffs, scopeYOffs, (uint8_t)i, false);
+			drawScopeNumber(
+				scopeXOffs, scopeYOffs, (uint8_t)i,
+				performanceMute[i]
+			);
 
 		// draw rec. symbol (if enabled)
 		if (config.multiRecChn[i])

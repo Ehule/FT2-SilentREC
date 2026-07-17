@@ -31,6 +31,7 @@ int32_t getSamplePositionFromScopes(uint8_t ch);
 void stopAllScopes(void);
 void refreshScopes(void);
 bool testScopesMouseDown(void);
+bool testScopesMouseWheel(bool directionUp);
 void drawScopes(void);
 void drawScopeFramework(void);
 bool initScopes(void);

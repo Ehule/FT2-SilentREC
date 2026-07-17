@@ -369,7 +369,12 @@ void updateVoices(void)
 
 		if (status & CS_UPDATE_VOL)
 		{
-			v->fVolume = ch->fFinalVol; // 0.0f .. 1.0f
+			/*
+			** Performance mute affects only the audible mixer voice.
+			** Scope volume deliberately remains based on the unmuted value,
+			** allowing the waveform to keep moving underneath the red X.
+			*/
+			v->fVolume = performanceMute[i] ? 0.0f : ch->fFinalVol;
 			v->scopeVolume = (uint8_t)((ch->fFinalVol * (SCOPE_HEIGHT*4.0f)) + 0.5f);
 		}
 

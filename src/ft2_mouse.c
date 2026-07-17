@@ -459,6 +459,10 @@ void mouseWheelHandler(bool directionUp)
 	if (ui.sysReqShown || editor.editTextFlag)
 		return;
 
+	// Ctrl+wheel over a scope adjusts that channel's output trim.
+	if ((SDL_GetModState() & KMOD_CTRL) && testScopesMouseWheel(directionUp))
+		return;
+
 	if (ui.extendedPatternEditor)
 	{
 		if (mouse.y <= 52)

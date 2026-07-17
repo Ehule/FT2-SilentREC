@@ -56,16 +56,6 @@ volatile bool replayerBusy = false;
 const uint16_t *note2PeriodLUT = NULL;
 int16_t patternNumRows[MAX_PATTERNS];
 channel_t channel[MAX_CHANNELS];
-uint16_t channelVolumeTrim[MAX_CHANNELS];
-
-/*
-** Runtime-only mixer-style mute.
-**
-** Unlike FT2's normal channel mute, this does not stop the voice or prevent
-** pattern data/effects from being processed. It only silences mixer output.
-*/
-bool performanceMute[MAX_CHANNELS];
-
 song_t song;
 instr_t *instr[128+4];
 note_t *pattern[MAX_PATTERNS];
@@ -126,18 +116,6 @@ void resetReplayerState(void)
 
 void resetChannels(void)
 {
-	static bool trimValuesInitialized = false;
-
-	if (!trimValuesInitialized)
-	{
-		for (int32_t i = 0; i < MAX_CHANNELS; i++)
-		{
-			channelVolumeTrim[i] = 256; // 100%
-			performanceMute[i] = false;
-		}
-
-		trimValuesInitialized = true;
-	}
 	const bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
@@ -1629,11 +1607,6 @@ void updateVolPanAutoVib(channel_t *ch)
 			const int32_t vol = song.globalVolume * ch->outVol * ch->fadeoutVol;
 			fVol = vol * (1.0f / (64.0f * 64.0f * 32768.0f));
 		}
-
-		// Apply non-destructive per-channel output trim.
-		const int32_t channelIndex = (int32_t)(ch - channel);
-		ASSERT(channelIndex >= 0 && channelIndex < MAX_CHANNELS);
-		fVol *= channelVolumeTrim[channelIndex] * (1.0f / 256.0f);
 
 		// FT2 doesn't clamp the volume, but let's do it just in case
 		if (fVol > 1.0f)

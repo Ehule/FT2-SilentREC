@@ -37,7 +37,6 @@ extern const uint8_t loopPinsBMP[6256];
 // ft2_bmp_scopes.c
 extern const uint8_t scopeRecBMP[120];
 extern const uint8_t scopeMuteBMP[5068];
-
 // ft2_bmp_midi.c
 extern const uint8_t midiLogoBMP[1544];
 
