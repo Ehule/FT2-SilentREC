@@ -961,6 +961,7 @@ static void diskOpSave(bool checkOverwrite)
 			{
 				         case SMP_SAVE_MODE_RAW: diskOpChangeFilenameExt(".raw"); break;
 				         case SMP_SAVE_MODE_IFF: diskOpChangeFilenameExt(".iff"); break;
+				         case SMP_SAVE_MODE_EXS: break; // directory name, no extension
 				default: case SMP_SAVE_MODE_WAV: diskOpChangeFilenameExt(".wav"); break;
 			}
 

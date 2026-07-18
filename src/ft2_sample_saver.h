@@ -11,3 +11,9 @@ enum
 };
 
 void saveSample(UNICHAR *filenameU, bool saveAsRange);
+
+/*
+** Exports every populated sample to numbered WAV files in SampleSet/.
+** This is currently the non-UI proof-of-concept entry point.
+*/
+bool exportSampleSet(const UNICHAR *directoryU);

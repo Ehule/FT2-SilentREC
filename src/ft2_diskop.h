@@ -18,7 +18,8 @@ enum
 	MOD_SAVE_MODE_WAV = 2,
 	SMP_SAVE_MODE_RAW = 0,
 	SMP_SAVE_MODE_IFF = 1,
-	SMP_SAVE_MODE_WAV = 2
+	SMP_SAVE_MODE_WAV = 2,
+	SMP_SAVE_MODE_EXS = 3
 };
 
 bool setupExecutablePath(void);

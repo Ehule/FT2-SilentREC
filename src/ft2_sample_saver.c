@@ -6,8 +6,12 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
-#ifndef _WIN32
+#include <errno.h>
+#ifdef _WIN32
+#include <direct.h>
+#else
 #include <unistd.h> // chdir()
+#include <sys/stat.h>
 #endif
 #include "ft2_header.h"
 #include "ft2_gui.h"
@@ -523,6 +527,125 @@ static bool saveWAVSample(UNICHAR *filenameU, bool saveRangedData)
 	return saveWAVSampleFromPointers(filenameU, ins, smp, saveRangedData);
 }
 
+/*
+** Export every populated sample in the current module as a WAV.
+**
+** This first proof-of-concept intentionally writes to a fixed SampleSet
+** directory in the process working directory. It does not alter the
+** currently selected instrument or sample.
+*/
+bool exportSampleSet(const UNICHAR *directoryU)
+{
+	/*
+	** Count populated samples before creating a directory or changing
+	** any save state. This also keeps an empty export from entering a
+	** broken busy/dialog state.
+	*/
+	int32_t populatedSamples = 0;
+
+	for (int32_t instrNum = 1; instrNum < MAX_INST; instrNum++)
+	{
+		instr_t *ins = instr[instrNum];
+		if (ins == NULL)
+			continue;
+
+		for (int32_t sampleNum = 0;
+		     sampleNum < MAX_SMP_PER_INST;
+		     sampleNum++)
+		{
+			sample_t *smp = &ins->smp[sampleNum];
+
+			if (smp->dataPtr != NULL && smp->length > 0)
+				populatedSamples++;
+		}
+	}
+
+	if (populatedSamples == 0)
+	{
+		/*
+		** EXS is currently invoked directly by a GUI pushbutton, so use
+		** the normal dialog function instead of okBoxThreadSafe().
+		*/
+		okBoxThreadSafe(0, "System message",
+		    "The module contains no populated samples.", NULL);
+		return false;
+	}
+
+#ifdef _WIN32
+	if (_wmkdir(directoryU) != 0 && errno != EEXIST)
+#else
+	if (mkdir(directoryU, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) != 0 &&
+	    errno != EEXIST)
+#endif
+	{
+		okBoxThreadSafe(0, "System message",
+		    "Couldn't create the sample-set directory!", NULL);
+		return false;
+	}
+
+	int32_t exportedSamples = 0;
+
+	/*
+	** The low-level WAV writer still uses saveRangeFlag while restoring
+	** interpolation taps. Preserve the old value and force full-sample
+	** behavior for this batch operation.
+	*/
+	const bool oldSaveRangeFlag = saveRangeFlag;
+	saveRangeFlag = false;
+
+	setMouseBusy(true);
+
+	for (int32_t instrNum = 1; instrNum < MAX_INST; instrNum++)
+	{
+		instr_t *ins = instr[instrNum];
+		if (ins == NULL)
+			continue;
+
+		for (int32_t sampleNum = 0;
+		     sampleNum < MAX_SMP_PER_INST;
+		     sampleNum++)
+		{
+			sample_t *smp = &ins->smp[sampleNum];
+
+			if (smp->dataPtr == NULL || smp->length <= 0)
+				continue;
+
+			UNICHAR filenameU[1024];
+
+#ifdef _WIN32
+			swprintf(filenameU,
+			    sizeof (filenameU) / sizeof (filenameU[0]),
+			    L"%ls\\%03d-%02d.wav",
+			    directoryU, instrNum, sampleNum + 1);
+#else
+			snprintf(filenameU, sizeof (filenameU),
+			    "%s/%03d-%02d.wav",
+			    directoryU, instrNum, sampleNum + 1);
+#endif
+
+			if (!saveWAVSampleFromPointers(filenameU, ins, smp, false))
+			{
+				saveRangeFlag = oldSaveRangeFlag;
+				setMouseBusy(false);
+				return false;
+			}
+
+			exportedSamples++;
+		}
+	}
+
+	saveRangeFlag = oldSaveRangeFlag;
+	setMouseBusy(false);
+
+	char message[128];
+	snprintf(message, sizeof (message),
+	    "Exported %d sample%s to the selected sample-set directory.",
+	    exportedSamples, exportedSamples == 1 ? "" : "s");
+
+	okBoxThreadSafe(0, "System message", message, NULL);
+	return true;
+}
+
 static int32_t saveSampleThread(void *ptr)
 {
 	if (editor.tmpFilenameU == NULL)
@@ -541,6 +664,7 @@ static int32_t saveSampleThread(void *ptr)
 	{
 		         case SMP_SAVE_MODE_RAW: saveRawSample(editor.tmpFilenameU, saveRangeFlag); break;
 		         case SMP_SAVE_MODE_IFF: saveIFFSample(editor.tmpFilenameU, saveRangeFlag); break;
+		         case SMP_SAVE_MODE_EXS: exportSampleSet(editor.tmpFilenameU); break;
 		default: case SMP_SAVE_MODE_WAV: saveWAVSample(editor.tmpFilenameU, saveRangeFlag); break;
 	}
 
