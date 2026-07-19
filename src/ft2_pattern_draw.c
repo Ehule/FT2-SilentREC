@@ -13,6 +13,7 @@
 #include "ft2_tables.h"
 #include "ft2_bmp.h"
 #include "ft2_structs.h"
+#include "ft2_replayer.h"
 
 static note_t emptyPattern[MAX_CHANNELS * MAX_PATT_LEN];
 
@@ -34,6 +35,7 @@ static const uint16_t flatNote1Char_big[12] = { 12*16, 13*16, 13*16, 14*16, 14*1
 static const uint16_t flatNote2Char_big[12] = { 36*16, 38*16, 36*16, 38*16, 36*16, 36*16, 38*16, 36*16, 38*16, 36*16, 38*16, 36*16 };
 
 static void pattCharOut(uint32_t xPos, uint32_t yPos, uint8_t chr, uint8_t fontType, uint32_t color);
+void pattTwoHexOut(uint32_t xPos, uint32_t yPos, uint8_t val, uint32_t color);
 static void drawEmptyNoteSmall(uint32_t xPos, uint32_t yPos, uint32_t color);
 static void drawKeyOffSmall(uint32_t xPos, uint32_t yPos, uint32_t color);
 static void drawNoteSmall(uint32_t xPos, uint32_t yPos, int32_t noteNum, uint32_t color);
@@ -749,6 +751,38 @@ static void showEfxNoVolColumn(uint32_t xPos, uint32_t yPos, uint8_t efx, uint8_
 	}
 }
 
+static void drawFastTracksPOCStatus(uint16_t yPos)
+{
+	for (int32_t fastTrackChannel = 0; fastTrackChannel < 8; fastTrackChannel++)
+	{
+		if (!fastTracksPOCIsEnabled(fastTrackChannel))
+			continue;
+
+		if (fastTrackChannel < ui.channelOffset || fastTrackChannel >= ui.channelOffset + ui.numChannelsShown)
+			continue;
+
+		const int32_t visibleChannel = fastTrackChannel - ui.channelOffset;
+		const uint32_t xPos = 30 + (visibleChannel * ui.patternChannelWidth);
+
+		// Reuse FT2's theme-controlled emphasized-row color for Fast Tracks.
+		// This keeps the status readable across palettes without inventing an RGB inverse.
+		charOutOutlined(xPos + 11, yPos, PAL_BLCKTXT, '2');
+		charOutOutlined(xPos + 19, yPos, PAL_BLCKTXT, 'X');
+		pattTwoHexOut(xPos + 29, yPos + 1, (uint8_t)fastTracksPOCGetSourceRow(fastTrackChannel), video.palette[PAL_BLCKTXT]);
+	}
+}
+
+static void drawFastTracksPOCArrow(uint32_t xPos, uint32_t yPos)
+{
+	// Tiny right-pointing clock-hand marker in the channel separator.
+	// The pattern data remains fixed; this marker shows the private row Track 8 is reading.
+	hLine((uint16_t)(xPos + 2), (uint16_t)(yPos + 1), 1, PAL_FORGRND);
+	hLine((uint16_t)(xPos + 1), (uint16_t)(yPos + 2), 2, PAL_FORGRND);
+	hLine((uint16_t)(xPos + 0), (uint16_t)(yPos + 3), 3, PAL_FORGRND);
+	hLine((uint16_t)(xPos + 1), (uint16_t)(yPos + 4), 2, PAL_FORGRND);
+	hLine((uint16_t)(xPos + 2), (uint16_t)(yPos + 5), 1, PAL_FORGRND);
+}
+
 void writePattern(int32_t currRow, int32_t currPattern)
 {
 	uint32_t noteTextColors[2];
@@ -827,13 +861,60 @@ void writePattern(int32_t currRow, int32_t currPattern)
 			const int32_t xWidth = ui.patternChannelWidth;
 			const uint32_t color = noteTextColors[selectedRowFlag];
 
+			// FT-005: every enabled channel among Tracks 1..8 is rendered as its own
+			// private scrolling tape window, centered on that channel's 2X source row.
 			int32_t xPos = 29;
 			for (int32_t j = 0; j < numChannels; j++, p++, xPos += xWidth)
 			{
-				drawNote(xPos, textY, p->note, color);
-				drawInst(xPos, textY, p->instr, color);
-				drawVolEfx(xPos, textY, p->vol, color);
-				drawEfx(xPos, textY, p->efx, p->efxData, color);
+				const int32_t absoluteChannel = ui.channelOffset + j;
+				const bool fastTrackVisible = fastTracksPOCIsEnabled(absoluteChannel);
+				const note_t *drawPtr = p;
+
+				if (fastTrackVisible)
+				{
+					if (selectedRowFlag)
+					{
+						const uint32_t arrowX = 29 + (j * ui.patternChannelWidth) - 3;
+						drawFastTracksPOCArrow(arrowX, (uint32_t)textY);
+					}
+
+					int32_t privateRow = fastTracksPOCGetSourceRow(absoluteChannel) + (i - pattCoord->numUpperRows);
+					while (privateRow < 0)
+						privateRow += numRows;
+					while (privateRow >= numRows)
+						privateRow -= numRows;
+
+					drawPtr = (pattern[currPattern] == NULL)
+						? emptyPattern
+						: &pattern[currPattern][(privateRow * MAX_CHANNELS) + absoluteChannel];
+				}
+
+				// Theme-safe Fast Tracks coloring: only populated event fields receive
+				// the emphasized-row palette color. Empty dots/dashes retain FT2's
+				// normal row color, making the event data look attached to the moving barrel.
+				uint32_t noteColor = color;
+				uint32_t instColor = color;
+				uint32_t volColor = color;
+				uint32_t efxColor = color;
+
+				if (fastTrackVisible)
+				{
+					const uint32_t fastTrackColor = video.palette[PAL_BLCKTXT];
+
+					if (drawPtr->note != 0)
+						noteColor = fastTrackColor;
+					if (drawPtr->instr != 0)
+						instColor = fastTrackColor;
+					if (drawPtr->vol != 0)
+						volColor = fastTrackColor;
+					if (drawPtr->efx != 0 || drawPtr->efxData != 0)
+						efxColor = fastTrackColor;
+				}
+
+				drawNote(xPos, textY, drawPtr->note, noteColor);
+				drawInst(xPos, textY, drawPtr->instr, instColor);
+				drawVolEfx(xPos, textY, drawPtr->vol, volColor);
+				drawEfx(xPos, textY, drawPtr->efx, drawPtr->efxData, efxColor);
 			}
 		}
 
@@ -859,6 +940,8 @@ void writePattern(int32_t currRow, int32_t currPattern)
 	// channel numbers must be drawn lastly
 	if (config.ptnChnNumbers)
 		drawChannelNumbering(pattCoord2->upperRowsY+2);
+
+	drawFastTracksPOCStatus(pattCoord2->upperRowsY+2);
 }
 
 // ========== CHARACTER DRAWING ROUTINES FOR PATTERN EDITOR ==========

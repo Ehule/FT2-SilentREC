@@ -22,6 +22,7 @@
 #include "ft2_wav_renderer.h"
 #include "ft2_sample_ed.h"
 #include "ft2_audio.h"
+#include "ft2_replayer.h"
 #include "ft2_trim.h"
 #include "ft2_sample_ed_features.h"
 #include "ft2_midi.h"
@@ -156,6 +157,14 @@ void keyDownHandler(SDL_Scancode scancode, SDL_Keycode keycode, bool keyWasRepea
 
 	if (scancode == SDL_SCANCODE_KP_PLUS)
 		keyb.numPadPlusPressed = true;
+
+	// Fast Tracks: Ctrl+Shift+1..8 toggles the corresponding track between 1X and 2X.
+	if (!keyWasRepeated && keyb.leftCtrlPressed && keyb.leftShiftPressed &&
+		scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_8)
+	{
+		fastTracksPOCToggle((int32_t)(scancode - SDL_SCANCODE_1));
+		return;
+	}
 
 	if (handleEditKeys(keycode, scancode))
 		return;

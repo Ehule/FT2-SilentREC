@@ -45,6 +45,56 @@ static volatile bool recPlusEarnedGameOver;
 
 static note_t nilPatternLine[MAX_CHANNELS];
 
+/*
+** Fast Tracks multi-channel prototype
+** -----------------------------------
+** The first eight channels can independently read two pattern rows during
+** every master row. Source rows wrap inside the current pattern. This is
+** runtime-only and does not alter XM pattern data or the file format.
+*/
+#define FAST_TRACKS_MAX_CHANNELS 8
+
+static volatile bool fastTracksPOCEnabled[FAST_TRACKS_MAX_CHANNELS] = { false, false, false, false, false, false, false, true };
+static volatile int32_t fastTracksPOCSourceRow[FAST_TRACKS_MAX_CHANNELS];
+
+bool fastTracksPOCIsEnabled(int32_t channelIndex)
+{
+	return channelIndex >= 0 && channelIndex < FAST_TRACKS_MAX_CHANNELS && fastTracksPOCEnabled[channelIndex];
+}
+
+int32_t fastTracksPOCGetSourceRow(int32_t channelIndex)
+{
+	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
+		return song.row;
+
+	return fastTracksPOCSourceRow[channelIndex];
+}
+
+void fastTracksPOCToggle(int32_t channelIndex)
+{
+	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
+		return;
+
+	fastTracksPOCEnabled[channelIndex] ^= 1;
+	fastTracksPOCSourceRow[channelIndex] = song.row;
+	ui.updatePatternEditor = true;
+}
+
+static const note_t *getFastTracksPOCNote(int32_t channelIndex, int32_t sourceRow)
+{
+	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS ||
+		song.pattNum >= MAX_PATTERNS || pattern[song.pattNum] == NULL || song.currNumRows <= 0)
+	{
+		return &nilPatternLine[0];
+	}
+
+	sourceRow %= song.currNumRows;
+	if (sourceRow < 0)
+		sourceRow += song.currNumRows;
+
+	return &pattern[song.pattNum][(sourceRow * MAX_CHANNELS) + channelIndex];
+}
+
 typedef void (*volColumnEfxRoutine)(channel_t *ch);
 typedef void (*volColumnEfxRoutine2)(channel_t *ch, uint8_t *volColumnData);
 typedef void (*efxRoutine)(channel_t *ch, uint8_t param);
@@ -2477,7 +2527,17 @@ void tickReplayer(void) // periodically called from audio callback
 		ch = channel;
 		for (int32_t i = 0; i < song.numChannels; i++, ch++, p++)
 		{
-			getNewNote(ch, p);
+			if (fastTracksPOCIsEnabled(i))
+			{
+				const int32_t fastRow = song.row * 2;
+				fastTracksPOCSourceRow[i] = fastRow % song.currNumRows;
+				getNewNote(ch, getFastTracksPOCNote(i, fastRow));
+			}
+			else
+			{
+				getNewNote(ch, p);
+			}
+
 			updateVolPanAutoVib(ch);
 		}
 	}
@@ -2486,7 +2546,24 @@ void tickReplayer(void) // periodically called from audio callback
 		ch = channel;
 		for (int32_t i = 0; i < song.numChannels; i++, ch++)
 		{
-			handleEffects_TickNonZero(ch);
+			const bool fastTracksHalfRow =
+				fastTracksPOCIsEnabled(i) &&
+				song.speed >= 2 &&
+				song.pattDelTime2 == 0 &&
+				song.tick == (song.speed / 2);
+
+			if (fastTracksHalfRow)
+			{
+				const int32_t fastRow = (song.row * 2) + 1;
+				fastTracksPOCSourceRow[i] = fastRow % song.currNumRows;
+				getNewNote(ch, getFastTracksPOCNote(i, fastRow));
+				ui.updatePatternEditor = true;
+			}
+			else
+			{
+				handleEffects_TickNonZero(ch);
+			}
+
 			updateVolPanAutoVib(ch);
 		}
 	}

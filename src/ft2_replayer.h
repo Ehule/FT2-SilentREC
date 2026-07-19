@@ -66,6 +66,11 @@ enum
 #define FT2_QUICK_VOLRAMP_MILLISECONDS 5
 #define PROG_NAME_STR "Fasttracker II clone"
 
+// Fast Tracks proof-of-concept controls (Track 8 at 2x)
+bool fastTracksPOCIsEnabled(int32_t channelIndex);
+int32_t fastTracksPOCGetSourceRow(int32_t channelIndex);
+void fastTracksPOCToggle(int32_t channelIndex);
+
 enum // sample flags
 {
 	SAMPLE_16BIT = 16,

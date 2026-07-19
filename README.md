@@ -61,6 +61,30 @@ FT2-Tapehead Edition rewards you with a hidden **GAME OVER** screen.
 
 Subsequent attempts display **REC+ FULL**.
 
+## Fast Tracks — Experimental
+
+Fast Tracks gives the first eight channels independent pattern-row transports while retaining one shared FT2 master clock. Each enabled channel currently reads the active pattern at **2×**, producing independently phased rhythmic and melodic cycles.
+
+Use:
+
+```text
+Ctrl+Shift+1 through Ctrl+Shift+8
+```
+
+to toggle Fast Tracks for Tracks 1–8. The modifier keys can be held while rolling across the number keys, making it easy to engage or disengage several tracks quickly.
+
+Each active Fast Track displays:
+
+- an independently scrolling pattern column;
+- a tiny fixed playhead resembling a tape head or mechanical scale pointer;
+- a `2X` transport label;
+- a hexadecimal private source-row readout;
+- theme-safe alternate coloring on populated pattern events.
+
+Fast Tracks can be activated at different moments, creating independent phase relationships. Turning an individual track off returns it to the master transport. Global effects placed on a Fast Track are encountered at that track's faster row-reading rate while still affecting the complete song; E6 pattern loops have been confirmed to produce musically useful accelerated global behavior.
+
+Fast Tracks remains experimental. Ratios other than 2×, global logo controls, persistent module metadata, multi-pattern validation, and stock-XM baking are planned. See [`docs/FAST_TRACKS.md`](docs/FAST_TRACKS.md) for detailed behavior and test notes, and [`CHANGELOG.md`](CHANGELOG.md) for the current milestone.
+
 ## Philosophy
 
 Every addition in FT2-Tapehead Edition is optional.
