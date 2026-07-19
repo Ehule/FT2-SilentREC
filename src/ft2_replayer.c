@@ -54,12 +54,52 @@ static note_t nilPatternLine[MAX_CHANNELS];
 */
 #define FAST_TRACKS_MAX_CHANNELS 8
 
-static volatile bool fastTracksPOCEnabled[FAST_TRACKS_MAX_CHANNELS] = { false, false, false, false, false, false, false, true };
+/*
+** A track can remain selected while the master switch is suspended.
+** This distinction lets the large logo stop/resume the whole Fast Tracks
+** machine without destroying the user's per-track setup.
+*/
+static volatile bool fastTracksPOCMasterEnabled = true;
+static volatile bool fastTracksPOCSelected[FAST_TRACKS_MAX_CHANNELS] = { false, false, false, false, false, false, false, true };
 static volatile int32_t fastTracksPOCSourceRow[FAST_TRACKS_MAX_CHANNELS];
+static volatile int32_t fastTracksPOCPhaseOffset[FAST_TRACKS_MAX_CHANNELS];
+
+static int32_t wrapFastTracksPOCRow(int32_t row)
+{
+	if (song.currNumRows <= 0)
+		return 0;
+
+	row %= song.currNumRows;
+	if (row < 0)
+		row += song.currNumRows;
+
+	return row;
+}
+
+static int32_t getFastTracksPOCMasterSourceRow(void)
+{
+	int32_t row = song.row * 2;
+
+	if (song.speed >= 2 && song.tick >= (song.speed / 2))
+		row++;
+
+	return wrapFastTracksPOCRow(row);
+}
+
+bool fastTracksPOCMasterIsEnabled(void)
+{
+	return fastTracksPOCMasterEnabled;
+}
+
+bool fastTracksPOCIsSelected(int32_t channelIndex)
+{
+	return channelIndex >= 0 && channelIndex < FAST_TRACKS_MAX_CHANNELS &&
+		fastTracksPOCSelected[channelIndex];
+}
 
 bool fastTracksPOCIsEnabled(int32_t channelIndex)
 {
-	return channelIndex >= 0 && channelIndex < FAST_TRACKS_MAX_CHANNELS && fastTracksPOCEnabled[channelIndex];
+	return fastTracksPOCMasterEnabled && fastTracksPOCIsSelected(channelIndex);
 }
 
 int32_t fastTracksPOCGetSourceRow(int32_t channelIndex)
@@ -75,8 +115,56 @@ void fastTracksPOCToggle(int32_t channelIndex)
 	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
 		return;
 
-	fastTracksPOCEnabled[channelIndex] ^= 1;
-	fastTracksPOCSourceRow[channelIndex] = song.row;
+	fastTracksPOCSelected[channelIndex] ^= 1;
+
+	if (fastTracksPOCSelected[channelIndex])
+	{
+		fastTracksPOCSourceRow[channelIndex] = song.row;
+		fastTracksPOCPhaseOffset[channelIndex] =
+			wrapFastTracksPOCRow(song.row - getFastTracksPOCMasterSourceRow());
+	}
+
+	ui.updatePatternEditor = true;
+}
+
+void fastTracksPOCMasterToggle(void)
+{
+	const SDL_Keymod modifiers = SDL_GetModState();
+	if (modifiers & KMOD_SHIFT)
+	{
+		/*
+		** Shift-click: synchronize every selected Fast Track to the shared
+		** 2X transport. Selection and the master on/off state are preserved.
+		*/
+		const int32_t masterSourceRow = getFastTracksPOCMasterSourceRow();
+
+		for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
+		{
+			if (fastTracksPOCSelected[i])
+			{
+				fastTracksPOCPhaseOffset[i] = 0;
+				fastTracksPOCSourceRow[i] = masterSourceRow;
+			}
+		}
+
+		ui.updatePatternEditor = true;
+		return;
+	}
+
+	fastTracksPOCMasterEnabled ^= 1;
+
+	if (fastTracksPOCMasterEnabled)
+	{
+		const int32_t masterSourceRow = getFastTracksPOCMasterSourceRow();
+
+		for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
+		{
+			if (fastTracksPOCSelected[i])
+				fastTracksPOCPhaseOffset[i] =
+					wrapFastTracksPOCRow(fastTracksPOCSourceRow[i] - masterSourceRow);
+		}
+	}
+
 	ui.updatePatternEditor = true;
 }
 
@@ -2529,7 +2617,8 @@ void tickReplayer(void) // periodically called from audio callback
 		{
 			if (fastTracksPOCIsEnabled(i))
 			{
-				const int32_t fastRow = song.row * 2;
+				const int32_t fastRow =
+					wrapFastTracksPOCRow((song.row * 2) + fastTracksPOCPhaseOffset[i]);
 				fastTracksPOCSourceRow[i] = fastRow % song.currNumRows;
 				getNewNote(ch, getFastTracksPOCNote(i, fastRow));
 			}
@@ -2554,7 +2643,8 @@ void tickReplayer(void) // periodically called from audio callback
 
 			if (fastTracksHalfRow)
 			{
-				const int32_t fastRow = (song.row * 2) + 1;
+				const int32_t fastRow =
+					wrapFastTracksPOCRow((song.row * 2) + 1 + fastTracksPOCPhaseOffset[i]);
 				fastTracksPOCSourceRow[i] = fastRow % song.currNumRows;
 				getNewNote(ch, getFastTracksPOCNote(i, fastRow));
 				ui.updatePatternEditor = true;

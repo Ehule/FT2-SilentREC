@@ -27,6 +27,7 @@
 #include "ft2_mouse.h"
 #include "ft2_edit.h"
 #include "ft2_sample_ed_features.h"
+#include "ft2_replayer.h"
 #include "ft2_smpfx.h"
 #include "ft2_palette.h"
 #include "ft2_structs.h"
@@ -84,7 +85,7 @@ pushButton_t pushButtons[NUM_PUSHBUTTONS] =
 
 	// ------ LOGO PUSHBUTTON ------
 	//x,   y, w,   h,  p, d, text #1, text #2, funcOnDown, funcOnUp
-	{ 112, 0, 154, 32, 0, 0, NULL,    NULL,    NULL,       pbToggleLogo  },
+	{ 112, 0, 154, 32, 0, 0, NULL,    NULL,    NULL,       fastTracksPOCMasterToggle  },
 	{ 266, 0,  25, 32, 0, 0, NULL,    NULL,    NULL,       pbToggleBadge },
 
 	// ------ MAIN SCREEN PUSHBUTTONS ------
