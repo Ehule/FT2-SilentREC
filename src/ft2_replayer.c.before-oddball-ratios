@@ -108,7 +108,7 @@ static const fastTracksRatio_t fastTracksPOCRatioBank[] =
 
 #define FAST_TRACKS_RATIO_COUNT ((int32_t)(sizeof (fastTracksPOCRatioBank) / sizeof (fastTracksPOCRatioBank[0])))
 
-static volatile uint8_t fastTracksPOCRatioIndex[FAST_TRACKS_MAX_CHANNELS] = { 12, 12, 12, 12, 12, 12, 12, 12 };
+static volatile uint8_t fastTracksPOCRatioIndex[FAST_TRACKS_MAX_CHANNELS] = { 12, 12, 12, 12, 12, 12, 12, 2 };
 
 static int32_t wrapFastTracksPOCRow(int32_t row)
 {
