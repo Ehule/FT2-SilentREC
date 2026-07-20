@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Regenerate embedded Fast Tracks artwork from the editable BMP.
+python3 scripts/update_fasttracks_logo.py || exit 1
+
 LINUXDEPLOY="linuxdeploy-$(uname -m).AppImage"
 BUILDDIR="release/linux"
 

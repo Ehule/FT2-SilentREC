@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Regenerate embedded Fast Tracks artwork from the editable BMP.
+python3 scripts/update_fasttracks_logo.py || exit 1
+
 rm release/other/ft2-clone &> /dev/null
 echo Compiling \(with no MIDI functionality\), please wait patiently...
 
