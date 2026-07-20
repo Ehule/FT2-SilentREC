@@ -71,6 +71,7 @@ bool fastTracksPOCMasterIsEnabled(void);
 bool fastTracksPOCIsSelected(int32_t channelIndex);
 bool fastTracksPOCIsEnabled(int32_t channelIndex);
 int32_t fastTracksPOCGetSourceRow(int32_t channelIndex);
+bool fastTracksPOCIsMasterAligned(int32_t channelIndex);
 uint8_t fastTracksPOCGetRatioNumerator(int32_t channelIndex);
 uint8_t fastTracksPOCGetRatioDenominator(int32_t channelIndex);
 void fastTracksPOCCycleRatio(int32_t channelIndex);

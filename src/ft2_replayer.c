@@ -202,6 +202,25 @@ int32_t fastTracksPOCGetSourceRow(int32_t channelIndex)
 	return fastTracksPOCSourceRow[channelIndex];
 }
 
+bool fastTracksPOCIsMasterAligned(int32_t channelIndex)
+{
+	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
+		return false;
+
+	const uint16_t masterTPL = song.speed > 0 ? song.speed : 1;
+	int32_t masterElapsedTicks = masterTPL - song.tick;
+	if (masterElapsedTicks < 0)
+		masterElapsedTicks = 0;
+	else if (masterElapsedTicks >= masterTPL)
+		masterElapsedTicks = masterTPL - 1;
+
+	const fastTracksRatio_t *ratio = getFastTracksPOCRatio(channelIndex);
+	const int32_t expectedAccumulator = ratio->denominator * masterElapsedTicks;
+
+	return fastTracksPOCSourceRow[channelIndex] == song.row &&
+		fastTracksPOCTickAccumulator[channelIndex] == expectedAccumulator;
+}
+
 uint8_t fastTracksPOCGetRatioNumerator(int32_t channelIndex)
 {
 	return getFastTracksPOCRatio(channelIndex)->numerator;
@@ -302,14 +321,26 @@ void fastTracksPOCMasterToggle(void)
 		** Shift-click: synchronize every selected Fast Track to its own
 		** shared transport. Selection and master state are preserved.
 		*/
+		const uint16_t masterTPL = song.speed > 0 ? song.speed : 1;
+		int32_t masterElapsedTicks = masterTPL - song.tick;
+		if (masterElapsedTicks < 0)
+			masterElapsedTicks = 0;
+		else if (masterElapsedTicks >= masterTPL)
+			masterElapsedTicks = masterTPL - 1;
+
 		for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
 		{
 			if (fastTracksPOCSelected[i])
 			{
+				const fastTracksRatio_t *ratio = getFastTracksPOCRatio(i);
+
 				fastTracksPOCSourceRow[i] = song.row;
-				fastTracksPOCTickAccumulator[i] = 0;
-				fastTracksPOCLastTPL[i] = song.speed > 0 ? song.speed : 1;
-				fastTracksPOCTransportStarted[i] = false;
+				/* Match the master's current fractional position inside the row.
+				** The accumulator threshold is denominator * TPL, so the
+				** equivalent master phase is denominator * elapsed ticks. */
+				fastTracksPOCTickAccumulator[i] = ratio->denominator * masterElapsedTicks;
+				fastTracksPOCLastTPL[i] = masterTPL;
+				fastTracksPOCTransportStarted[i] = true;
 			}
 		}
 

@@ -765,13 +765,77 @@ static void drawFastTracksPOCStatus(uint16_t yPos)
 		const uint32_t xPos = 30 + (visibleChannel * ui.patternChannelWidth);
 		const uint8_t numerator = fastTracksPOCGetRatioNumerator(fastTrackChannel);
 		const uint8_t denominator = fastTracksPOCGetRatioDenominator(fastTrackChannel);
+		const int32_t sourceRow = fastTracksPOCGetSourceRow(fastTrackChannel);
+
+		/*
+		** Keep the Fast Tracks instrument panel readable while pattern data
+		** scrolls beneath it. This deliberately uses the normal desktop color
+		** so it remains compatible with every FT2 palette/theme.
+		*/
+		uint16_t panelWidth = (uint16_t)(ui.patternChannelWidth - 10);
+		if (panelWidth > 58)
+			panelWidth = 58;
+		fillRect((uint16_t)(xPos + 8), yPos, panelWidth, 8, PAL_DESKTOP);
 
 		// Reuse FT2's theme-controlled emphasized-row color for Fast Tracks.
 		charOutOutlined(xPos + 11, yPos, PAL_BLCKTXT, '0' + numerator);
 		charOutOutlined(xPos + 18, yPos, PAL_BLCKTXT, ':');
 		charOutOutlined(xPos + 21, yPos, PAL_BLCKTXT, '0' + denominator);
 
-		pattTwoHexOut(xPos + 35, yPos + 1, (uint8_t)fastTracksPOCGetSourceRow(fastTrackChannel), video.palette[PAL_BLCKTXT]);
+		/*
+		** Fifteen-position master-relative phase scale. The middle is zero:
+		** the Fast Track source row matches the master row. Left is behind,
+		** right is ahead. Use the shortest wrapped row distance so crossing a
+		** pattern boundary does not reverse the apparent relationship.
+		*/
+		const int32_t numRows = song.currNumRows > 0 ? song.currNumRows : 1;
+		int32_t phaseOffset = sourceRow - song.row;
+		phaseOffset %= numRows;
+		if (phaseOffset < 0)
+			phaseOffset += numRows;
+
+		if (phaseOffset > numRows / 2)
+			phaseOffset -= numRows;
+
+		const uint16_t scaleX = (uint16_t)(xPos + 31);
+		const uint16_t scaleY = (uint16_t)(yPos + 4);
+		for (int32_t i = 0; i < 15; i++)
+			video.frameBuffer[(scaleY * SCREEN_W) + scaleX + (i * 2)] = video.palette[PAL_BLCKTXT];
+
+		int32_t phasePos = 7;
+		if (numRows > 1)
+		{
+			const int32_t halfRows = numRows / 2;
+			phasePos += (phaseOffset * 7) / (halfRows > 0 ? halfRows : 1);
+			if (phasePos < 0)
+				phasePos = 0;
+			else if (phasePos > 14)
+				phasePos = 14;
+		}
+
+		const uint16_t markerX = (uint16_t)(scaleX + (phasePos * 2));
+		const uint32_t markerColor = 0xFFFF0000; // fixed bright red, independent of theme palette
+		if (fastTracksPOCIsMasterAligned(fastTrackChannel))
+		{
+			// Larger capital X for exact row alignment with the master transport.
+			video.frameBuffer[((yPos + 1) * SCREEN_W) + markerX - 2] = markerColor;
+			video.frameBuffer[((yPos + 1) * SCREEN_W) + markerX + 2] = markerColor;
+			video.frameBuffer[((yPos + 2) * SCREEN_W) + markerX - 1] = markerColor;
+			video.frameBuffer[((yPos + 2) * SCREEN_W) + markerX + 1] = markerColor;
+			video.frameBuffer[((yPos + 3) * SCREEN_W) + markerX] = markerColor;
+			video.frameBuffer[((yPos + 4) * SCREEN_W) + markerX - 1] = markerColor;
+			video.frameBuffer[((yPos + 4) * SCREEN_W) + markerX + 1] = markerColor;
+			video.frameBuffer[((yPos + 5) * SCREEN_W) + markerX - 2] = markerColor;
+			video.frameBuffer[((yPos + 5) * SCREEN_W) + markerX + 2] = markerColor;
+		}
+		else
+		{
+			for (int32_t dotY = 2; dotY < 5; dotY++)
+			{
+				video.frameBuffer[((yPos + dotY) * SCREEN_W) + markerX] = markerColor;
+				video.frameBuffer[((yPos + dotY) * SCREEN_W) + markerX + 1] = markerColor;
+			}
+		}
 	}
 }
 
