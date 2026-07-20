@@ -158,7 +158,15 @@ void keyDownHandler(SDL_Scancode scancode, SDL_Keycode keycode, bool keyWasRepea
 	if (scancode == SDL_SCANCODE_KP_PLUS)
 		keyb.numPadPlusPressed = true;
 
-	// Fast Tracks: Ctrl+Shift+1..8 toggles the corresponding track between 1X and 2X.
+	// Fast Tracks: Alt+Shift+1..8 cycles that track's ratio.
+	if (!keyWasRepeated && keyb.leftAltPressed && keyb.leftShiftPressed &&
+		scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_8)
+	{
+		fastTracksPOCCycleRatio((int32_t)(scancode - SDL_SCANCODE_1));
+		return;
+	}
+
+	// Fast Tracks: Ctrl+Shift+1..8 toggles the corresponding track.
 	if (!keyWasRepeated && keyb.leftCtrlPressed && keyb.leftShiftPressed &&
 		scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_8)
 	{

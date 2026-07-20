@@ -65,6 +65,34 @@ static volatile bool fastTracksPOCSelected[FAST_TRACKS_MAX_CHANNELS] = { false, 
 static volatile int32_t fastTracksPOCSourceRow[FAST_TRACKS_MAX_CHANNELS];
 static volatile int32_t fastTracksPOCPhaseOffset[FAST_TRACKS_MAX_CHANNELS];
 
+/* Private master-row phase for each Fast Track. Unlike song.row, this counter
+** advances only while the Fast Tracks master is running. Freezing it is what
+** lets suspend/resume retain the denominator position of ratios such as 1:2,
+** 2:3 and 3:4 instead of reconstructing phase from an unrelated master row. */
+static volatile int32_t fastTracksPOCMasterPhase[FAST_TRACKS_MAX_CHANNELS];
+static volatile bool fastTracksPOCPhaseAdvancePending[FAST_TRACKS_MAX_CHANNELS];
+
+/* First rational ratio bank. The engine currently supports all ratios at or
+** below 1:1 at master-row resolution, plus the proven 2:1 half-row path. */
+typedef struct fastTracksRatio_t
+{
+	uint8_t numerator;   /* source rows */
+	uint8_t denominator; /* master rows */
+} fastTracksRatio_t;
+
+static const fastTracksRatio_t fastTracksPOCRatioBank[] =
+{
+	{ 1, 2 },
+	{ 2, 3 },
+	{ 3, 4 },
+	{ 1, 1 },
+	{ 2, 1 }
+};
+
+#define FAST_TRACKS_RATIO_COUNT ((int32_t)(sizeof (fastTracksPOCRatioBank) / sizeof (fastTracksPOCRatioBank[0])))
+
+static volatile uint8_t fastTracksPOCRatioIndex[FAST_TRACKS_MAX_CHANNELS] = { 4, 4, 4, 4, 4, 4, 4, 2 };
+
 static int32_t wrapFastTracksPOCRow(int32_t row)
 {
 	if (song.currNumRows <= 0)
@@ -77,22 +105,30 @@ static int32_t wrapFastTracksPOCRow(int32_t row)
 	return row;
 }
 
+static const fastTracksRatio_t *getFastTracksPOCRatio(int32_t channelIndex)
+{
+	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
+		return &fastTracksPOCRatioBank[3]; /* 1:1 */
+
+	return &fastTracksPOCRatioBank[fastTracksPOCRatioIndex[channelIndex] % FAST_TRACKS_RATIO_COUNT];
+}
+
+static int32_t getFastTracksPOCSourceRowForPhase(int32_t channelIndex, int32_t masterPhase)
+{
+	const fastTracksRatio_t *ratio = getFastTracksPOCRatio(channelIndex);
+
+	/* Return the source row at the START of a private master phase. The
+	** additional 2:1 source row is dispatched explicitly at the half-row
+	** tick in tickReplayer(). Slower rational ratios naturally hold rows. */
+	return wrapFastTracksPOCRow((masterPhase * ratio->numerator) / ratio->denominator);
+}
+
 static int32_t getFastTracksPOCMasterSourceRowForChannel(int32_t channelIndex)
 {
-	/* Track 8 is the first rational-clock experiment: three source rows
-	** advance during every four master rows. Tracks 1..7 remain at 2:1. */
-	if (channelIndex == 7)
-		return wrapFastTracksPOCRow((song.row * 3) / 4);
+	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
+		return song.row;
 
-	/*
-	** Return the source row at the START of the current master row.
-	** The second 2:1 source row is dispatched explicitly at the half-row
-	** tick in tickReplayer(). Making this helper tick-dependent caused the
-	** odd source row to be read at tick zero and then retriggered again at
-	** the half-row point. On note-dense modules that sounded like dropouts
-	** or brief gaps because every even source row was skipped.
-	*/
-	return wrapFastTracksPOCRow(song.row * 2);
+	return getFastTracksPOCSourceRowForPhase(channelIndex, fastTracksPOCMasterPhase[channelIndex]);
 }
 
 bool fastTracksPOCMasterIsEnabled(void)
@@ -119,6 +155,38 @@ int32_t fastTracksPOCGetSourceRow(int32_t channelIndex)
 	return fastTracksPOCSourceRow[channelIndex];
 }
 
+uint8_t fastTracksPOCGetRatioNumerator(int32_t channelIndex)
+{
+	return getFastTracksPOCRatio(channelIndex)->numerator;
+}
+
+uint8_t fastTracksPOCGetRatioDenominator(int32_t channelIndex)
+{
+	return getFastTracksPOCRatio(channelIndex)->denominator;
+}
+
+void fastTracksPOCCycleRatio(int32_t channelIndex)
+{
+	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
+		return;
+
+	const bool audioWasntLocked = !audio.locked;
+	if (audioWasntLocked)
+		lockAudio();
+
+	fastTracksPOCRatioIndex[channelIndex] = (uint8_t)((fastTracksPOCRatioIndex[channelIndex] + 1) % FAST_TRACKS_RATIO_COUNT);
+
+	/* Keep the visible/private row continuous when the timing law changes.
+	** The new ratio then evolves from that retained live phase. */
+	fastTracksPOCPhaseOffset[channelIndex] = wrapFastTracksPOCRow(
+		fastTracksPOCSourceRow[channelIndex] - getFastTracksPOCMasterSourceRowForChannel(channelIndex));
+
+	if (audioWasntLocked)
+		unlockAudio();
+
+	ui.updatePatternEditor = true;
+}
+
 void fastTracksPOCToggle(int32_t channelIndex)
 {
 	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
@@ -132,6 +200,8 @@ void fastTracksPOCToggle(int32_t channelIndex)
 	{
 		/* Publish a complete transport state before the audio thread can see
 		** this channel as selected. */
+		fastTracksPOCMasterPhase[channelIndex] = song.row;
+		fastTracksPOCPhaseAdvancePending[channelIndex] = false;
 		fastTracksPOCSourceRow[channelIndex] = song.row;
 		fastTracksPOCPhaseOffset[channelIndex] =
 			wrapFastTracksPOCRow(song.row - getFastTracksPOCMasterSourceRowForChannel(channelIndex));
@@ -157,6 +227,8 @@ void fastTracksPOCResetForLoadedModule(void)
 	*/
 	for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
 	{
+		fastTracksPOCMasterPhase[i] = song.row;
+		fastTracksPOCPhaseAdvancePending[i] = false;
 		fastTracksPOCPhaseOffset[i] = 0;
 		fastTracksPOCSourceRow[i] = getFastTracksPOCMasterSourceRowForChannel(i);
 	}
@@ -179,6 +251,8 @@ void fastTracksPOCMasterToggle(void)
 		{
 			if (fastTracksPOCSelected[i])
 			{
+				fastTracksPOCMasterPhase[i] = song.row;
+				fastTracksPOCPhaseAdvancePending[i] = false;
 				fastTracksPOCPhaseOffset[i] = 0;
 				fastTracksPOCSourceRow[i] = getFastTracksPOCMasterSourceRowForChannel(i);
 			}
@@ -193,15 +267,8 @@ void fastTracksPOCMasterToggle(void)
 
 	fastTracksPOCMasterEnabled ^= 1;
 
-	if (fastTracksPOCMasterEnabled)
-	{
-		for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
-		{
-			if (fastTracksPOCSelected[i])
-				fastTracksPOCPhaseOffset[i] = wrapFastTracksPOCRow(
-					fastTracksPOCSourceRow[i] - getFastTracksPOCMasterSourceRowForChannel(i));
-		}
-	}
+	/* Do not rebuild phase from song.row here. The private master phase and
+	** its pending-step state deliberately remain frozen while suspended. */
 
 	if (audioWasntLocked)
 		unlockAudio();
@@ -2659,12 +2726,21 @@ void tickReplayer(void) // periodically called from audio callback
 		{
 			if (fastTracksPOCIsEnabled(i))
 			{
+				/* Advance the private master phase once per played master row.
+				** The first row after selecting a track uses its seeded phase;
+				** suspend/resume leaves both values untouched. */
+				if (fastTracksPOCPhaseAdvancePending[i])
+					fastTracksPOCMasterPhase[i]++;
+				else
+					fastTracksPOCPhaseAdvancePending[i] = true;
+
 				const int32_t fastRow = wrapFastTracksPOCRow(
 					getFastTracksPOCMasterSourceRowForChannel(i) + fastTracksPOCPhaseOffset[i]);
 
-				/* A 3:4 clock must hold one source row during each four-row
-				** master cycle. Do not retrigger that held row. */
-				if (i == 7 && fastRow == fastTracksPOCSourceRow[i])
+				/* Ratios at or below 1:1 can hold a source row across master
+				** rows. Do not retrigger a held row. */
+				const fastTracksRatio_t *ratio = getFastTracksPOCRatio(i);
+				if (ratio->numerator <= ratio->denominator && fastRow == fastTracksPOCSourceRow[i])
 				{
 					/* This is still tick zero. Hold the current voice without
 					** retriggering the note or faking a nonzero effect tick. */
@@ -2688,9 +2764,10 @@ void tickReplayer(void) // periodically called from audio callback
 		ch = channel;
 		for (int32_t i = 0; i < song.numChannels; i++, ch++)
 		{
+			const fastTracksRatio_t *fastTracksRatio = getFastTracksPOCRatio(i);
 			const bool fastTracksHalfRow =
-				i != 7 &&
 				fastTracksPOCIsEnabled(i) &&
+				fastTracksRatio->numerator == 2 && fastTracksRatio->denominator == 1 &&
 				song.speed >= 2 &&
 				song.pattDelTime2 == 0 &&
 				song.tick == (song.speed / 2);
@@ -2698,7 +2775,7 @@ void tickReplayer(void) // periodically called from audio callback
 			if (fastTracksHalfRow)
 			{
 				const int32_t fastRow =
-					wrapFastTracksPOCRow((song.row * 2) + 1 + fastTracksPOCPhaseOffset[i]);
+					wrapFastTracksPOCRow((fastTracksPOCMasterPhase[i] * 2) + 1 + fastTracksPOCPhaseOffset[i]);
 				fastTracksPOCSourceRow[i] = fastRow % song.currNumRows;
 				getNewNote(ch, getFastTracksPOCNote(i, fastRow));
 				ui.updatePatternEditor = true;

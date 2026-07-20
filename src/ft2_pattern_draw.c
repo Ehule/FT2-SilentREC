@@ -763,24 +763,15 @@ static void drawFastTracksPOCStatus(uint16_t yPos)
 
 		const int32_t visibleChannel = fastTrackChannel - ui.channelOffset;
 		const uint32_t xPos = 30 + (visibleChannel * ui.patternChannelWidth);
+		const uint8_t numerator = fastTracksPOCGetRatioNumerator(fastTrackChannel);
+		const uint8_t denominator = fastTracksPOCGetRatioDenominator(fastTrackChannel);
 
 		// Reuse FT2's theme-controlled emphasized-row color for Fast Tracks.
-		// This keeps the status readable across palettes without inventing an RGB inverse.
-		if (fastTrackChannel == 7)
-		{
-			/* Compact 3:4 label, aligned with the existing 2X status. */
-			charOutOutlined(xPos + 11, yPos, PAL_BLCKTXT, '3');
-			charOutOutlined(xPos + 18, yPos, PAL_BLCKTXT, ':');
-			charOutOutlined(xPos + 21, yPos, PAL_BLCKTXT, '4'); //was 25
-		}
-		else
-		{
-			charOutOutlined(xPos + 11, yPos, PAL_BLCKTXT, '2');
-			charOutOutlined(xPos + 19, yPos, PAL_BLCKTXT, 'X');
-		}
+		charOutOutlined(xPos + 11, yPos, PAL_BLCKTXT, '0' + numerator);
+		charOutOutlined(xPos + 18, yPos, PAL_BLCKTXT, ':');
+		charOutOutlined(xPos + 21, yPos, PAL_BLCKTXT, '0' + denominator);
 
-		const uint32_t sourceRowX = xPos + (fastTrackChannel == 7 ? 35 : 29);
-		pattTwoHexOut(sourceRowX, yPos + 1, (uint8_t)fastTracksPOCGetSourceRow(fastTrackChannel), video.palette[PAL_BLCKTXT]);
+		pattTwoHexOut(xPos + 35, yPos + 1, (uint8_t)fastTracksPOCGetSourceRow(fastTrackChannel), video.palette[PAL_BLCKTXT]);
 	}
 }
 
