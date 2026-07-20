@@ -772,10 +772,8 @@ static void drawFastTracksPOCStatus(uint16_t yPos)
 		** scrolls beneath it. This deliberately uses the normal desktop color
 		** so it remains compatible with every FT2 palette/theme.
 		*/
-		uint16_t panelWidth = (uint16_t)(ui.patternChannelWidth - 10);
-		if (panelWidth > 58)
-			panelWidth = 58;
-		fillRect((uint16_t)(xPos + 8), yPos, panelWidth, 8, PAL_DESKTOP);
+		const uint16_t panelWidth = (uint16_t)(ui.patternChannelWidth - 2);
+		fillRect((uint16_t)xPos, yPos, panelWidth, 8, PAL_DESKTOP);
 
 		// Reuse FT2's theme-controlled emphasized-row color for Fast Tracks.
 		charOutOutlined(xPos + 11, yPos, PAL_BLCKTXT, '0' + numerator);
@@ -1004,11 +1002,12 @@ void writePattern(int32_t currRow, int32_t currPattern)
 	if (pattMark.markY1 != pattMark.markY2)
 		writePatternBlockMark(currRow, rowHeight, pattCoord);
 
+	// Draw the Fast Tracks panel first, then restore channel numbers over it.
+	drawFastTracksPOCStatus(pattCoord2->upperRowsY+2);
+
 	// channel numbers must be drawn lastly
 	if (config.ptnChnNumbers)
 		drawChannelNumbering(pattCoord2->upperRowsY+2);
-
-	drawFastTracksPOCStatus(pattCoord2->upperRowsY+2);
 }
 
 // ========== CHARACTER DRAWING ROUTINES FOR PATTERN EDITOR ==========
