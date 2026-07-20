@@ -2327,11 +2327,17 @@ void changeLogoType(uint8_t logoType)
 	** theme-aware Fast Tracks artwork while it is enabled. Both sheets keep
 	** the original four-row unpressed/pressed layout.
 	*/
-	uint8_t *logoBadges = fastTracksPOCMasterIsEnabled()
+	const bool fastTracksEnabled = fastTracksPOCMasterIsEnabled();
+	uint8_t *logoBadges = fastTracksEnabled
 		? bmp.fastTracksLogoBadges
 		: bmp.ft2LogoBadges;
 
-	const uint32_t firstFrame = (logoType == 0) ? 0 : 2;
+	/*
+	** The Fast Tracks sheet stores its actual FAST TRACKS artwork in frames
+	** 2/3. Frames 0/1 are the earlier FastTracker-style variants and must not
+	** be selected by the user's normal FT2 logo preference.
+	*/
+	const uint32_t firstFrame = fastTracksEnabled ? 2 : ((logoType == 0) ? 0 : 2);
 	pushButtons[PB_LOGO].bitmapUnpressed = &logoBadges[(154 * 32) * firstFrame];
 	pushButtons[PB_LOGO].bitmapPressed = &logoBadges[(154 * 32) * (firstFrame + 1)];
 
