@@ -2321,16 +2321,19 @@ void changeLogoType(uint8_t logoType)
 {
 	pushButtons[PB_LOGO].bitmapFlag = true;
 
-	if (logoType == 0)
-	{
-		pushButtons[PB_LOGO].bitmapUnpressed = &bmp.ft2LogoBadges[(154 * 32) * 0];
-		pushButtons[PB_LOGO].bitmapPressed = &bmp.ft2LogoBadges[(154 * 32) * 1];
-	}
-	else
-	{
-		pushButtons[PB_LOGO].bitmapUnpressed = &bmp.ft2LogoBadges[(154 * 32) * 2];
-		pushButtons[PB_LOGO].bitmapPressed = &bmp.ft2LogoBadges[(154 * 32) * 3];
-	}
+	/*
+	** The large logo is now the Fast Tracks master button. Keep the stock
+	** FT2/Triton artwork while the transport is disabled, and use the new
+	** theme-aware Fast Tracks artwork while it is enabled. Both sheets keep
+	** the original four-row unpressed/pressed layout.
+	*/
+	uint8_t *logoBadges = fastTracksPOCMasterIsEnabled()
+		? bmp.fastTracksLogoBadges
+		: bmp.ft2LogoBadges;
+
+	const uint32_t firstFrame = (logoType == 0) ? 0 : 2;
+	pushButtons[PB_LOGO].bitmapUnpressed = &logoBadges[(154 * 32) * firstFrame];
+	pushButtons[PB_LOGO].bitmapPressed = &logoBadges[(154 * 32) * (firstFrame + 1)];
 
 	drawPushButton(PB_LOGO);
 }

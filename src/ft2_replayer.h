@@ -72,6 +72,7 @@ bool fastTracksPOCIsSelected(int32_t channelIndex);
 bool fastTracksPOCIsEnabled(int32_t channelIndex);
 int32_t fastTracksPOCGetSourceRow(int32_t channelIndex);
 void fastTracksPOCToggle(int32_t channelIndex);
+void fastTracksPOCResetForLoadedModule(void);
 void fastTracksPOCMasterToggle(void);
 
 enum // sample flags

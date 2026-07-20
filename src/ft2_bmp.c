@@ -91,6 +91,7 @@ bool loadBMPs(void)
 	bmp.font7 = loadBMPTo1Bit(font7BMP);
 	bmp.font8 = loadBMPTo1Bit(font8BMP);
 	bmp.ft2LogoBadges = loadBMPTo4BitPal(ft2LogoBadgesBMP);
+	bmp.fastTracksLogoBadges = loadBMPTo4BitPal(fastTracksLogoBadgesBMP);
 	bmp.ft2ByBadges = loadBMPTo4BitPal(ft2ByBadgesBMP);
 	bmp.midiLogo = loadBMPTo4BitPal(midiLogoBMP);
 	bmp.nibblesLogo = loadBMPTo4BitPal(nibblesLogoBMP);
@@ -109,7 +110,7 @@ bool loadBMPs(void)
 
 	if (bmp.ft2AboutLogo == NULL || bmp.buttonGfx == NULL || bmp.font1 == NULL || bmp.font2 == NULL ||
 		bmp.font3 == NULL || bmp.font4 == NULL || bmp.font6 == NULL || bmp.font7 == NULL ||
-		bmp.font8 == NULL || bmp.ft2LogoBadges == NULL || bmp.ft2ByBadges == NULL ||
+		bmp.font8 == NULL || bmp.ft2LogoBadges == NULL || bmp.fastTracksLogoBadges == NULL || bmp.ft2ByBadges == NULL ||
 		bmp.midiLogo == NULL || bmp.nibblesLogo == NULL || bmp.nibblesStages == NULL ||
 		bmp.loopPins == NULL || bmp.mouseCursors == NULL || bmp.mouseCursorBusyClock == NULL ||
 		bmp.mouseCursorBusyGlass == NULL || bmp.whitePianoKeys == NULL || bmp.blackPianoKeys == NULL ||
@@ -135,6 +136,7 @@ void freeBMPs(void)
 	if (bmp.font7 != NULL) { free(bmp.font7); bmp.font7 = NULL; }
 	if (bmp.font8 != NULL) { free(bmp.font8); bmp.font8 = NULL; }
 	if (bmp.ft2LogoBadges != NULL) { free(bmp.ft2LogoBadges); bmp.ft2LogoBadges = NULL; }
+	if (bmp.fastTracksLogoBadges != NULL) { free(bmp.fastTracksLogoBadges); bmp.fastTracksLogoBadges = NULL; }
 	if (bmp.ft2ByBadges != NULL) { free(bmp.ft2ByBadges); bmp.ft2ByBadges = NULL; }
 	if (bmp.midiLogo != NULL) { free(bmp.midiLogo); bmp.midiLogo = NULL; }
 	if (bmp.nibblesLogo != NULL) { free(bmp.nibblesLogo); bmp.nibblesLogo = NULL; }

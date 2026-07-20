@@ -17,6 +17,7 @@
 #include "ft2_config.h"
 #include "ft2_gui.h"
 #include "ft2_video.h"
+#include "ft2_audio.h"
 #include "ft2_pattern_ed.h"
 #include "ft2_sample_ed.h"
 #include "ft2_inst_ed.h"
@@ -59,8 +60,8 @@ static note_t nilPatternLine[MAX_CHANNELS];
 ** This distinction lets the large logo stop/resume the whole Fast Tracks
 ** machine without destroying the user's per-track setup.
 */
-static volatile bool fastTracksPOCMasterEnabled = true;
-static volatile bool fastTracksPOCSelected[FAST_TRACKS_MAX_CHANNELS] = { false, false, false, false, false, false, false, true };
+static volatile bool fastTracksPOCMasterEnabled = false;
+static volatile bool fastTracksPOCSelected[FAST_TRACKS_MAX_CHANNELS] = { false, false, false, false, false, false, false, false };
 static volatile int32_t fastTracksPOCSourceRow[FAST_TRACKS_MAX_CHANNELS];
 static volatile int32_t fastTracksPOCPhaseOffset[FAST_TRACKS_MAX_CHANNELS];
 
@@ -76,14 +77,22 @@ static int32_t wrapFastTracksPOCRow(int32_t row)
 	return row;
 }
 
-static int32_t getFastTracksPOCMasterSourceRow(void)
+static int32_t getFastTracksPOCMasterSourceRowForChannel(int32_t channelIndex)
 {
-	int32_t row = song.row * 2;
+	/* Track 8 is the first rational-clock experiment: three source rows
+	** advance during every four master rows. Tracks 1..7 remain at 2:1. */
+	if (channelIndex == 7)
+		return wrapFastTracksPOCRow((song.row * 3) / 4);
 
-	if (song.speed >= 2 && song.tick >= (song.speed / 2))
-		row++;
-
-	return wrapFastTracksPOCRow(row);
+	/*
+	** Return the source row at the START of the current master row.
+	** The second 2:1 source row is dispatched explicitly at the half-row
+	** tick in tickReplayer(). Making this helper tick-dependent caused the
+	** odd source row to be read at tick zero and then retriggered again at
+	** the half-row point. On note-dense modules that sounded like dropouts
+	** or brief gaps because every even source row was skipped.
+	*/
+	return wrapFastTracksPOCRow(song.row * 2);
 }
 
 bool fastTracksPOCMasterIsEnabled(void)
@@ -115,37 +124,68 @@ void fastTracksPOCToggle(int32_t channelIndex)
 	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
 		return;
 
-	fastTracksPOCSelected[channelIndex] ^= 1;
+	const bool audioWasntLocked = !audio.locked;
+	if (audioWasntLocked)
+		lockAudio();
 
-	if (fastTracksPOCSelected[channelIndex])
+	if (!fastTracksPOCSelected[channelIndex])
 	{
+		/* Publish a complete transport state before the audio thread can see
+		** this channel as selected. */
 		fastTracksPOCSourceRow[channelIndex] = song.row;
 		fastTracksPOCPhaseOffset[channelIndex] =
-			wrapFastTracksPOCRow(song.row - getFastTracksPOCMasterSourceRow());
+			wrapFastTracksPOCRow(song.row - getFastTracksPOCMasterSourceRowForChannel(channelIndex));
+		fastTracksPOCSelected[channelIndex] = true;
 	}
+	else
+	{
+		fastTracksPOCSelected[channelIndex] = false;
+	}
+
+	if (audioWasntLocked)
+		unlockAudio();
 
 	ui.updatePatternEditor = true;
 }
 
+void fastTracksPOCResetForLoadedModule(void)
+{
+	/*
+	** A newly loaded module has a different pattern map and row count.
+	** Keep the user's selected tracks and master state, but discard source
+	** rows and phase offsets that belonged to the previous module.
+	*/
+	for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
+	{
+		fastTracksPOCPhaseOffset[i] = 0;
+		fastTracksPOCSourceRow[i] = getFastTracksPOCMasterSourceRowForChannel(i);
+	}
+}
+
 void fastTracksPOCMasterToggle(void)
 {
+	const bool audioWasntLocked = !audio.locked;
+	if (audioWasntLocked)
+		lockAudio();
+
 	const SDL_Keymod modifiers = SDL_GetModState();
 	if (modifiers & KMOD_SHIFT)
 	{
 		/*
-		** Shift-click: synchronize every selected Fast Track to the shared
-		** 2X transport. Selection and the master on/off state are preserved.
+		** Shift-click: synchronize every selected Fast Track to its own
+		** shared transport. Selection and master state are preserved.
 		*/
-		const int32_t masterSourceRow = getFastTracksPOCMasterSourceRow();
-
 		for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
 		{
 			if (fastTracksPOCSelected[i])
 			{
 				fastTracksPOCPhaseOffset[i] = 0;
-				fastTracksPOCSourceRow[i] = masterSourceRow;
+				fastTracksPOCSourceRow[i] = getFastTracksPOCMasterSourceRowForChannel(i);
 			}
 		}
+
+		if (audioWasntLocked)
+			unlockAudio();
 
 		ui.updatePatternEditor = true;
 		return;
@@ -155,17 +195,19 @@ void fastTracksPOCMasterToggle(void)
 
 	if (fastTracksPOCMasterEnabled)
 	{
-		const int32_t masterSourceRow = getFastTracksPOCMasterSourceRow();
-
 		for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
 		{
 			if (fastTracksPOCSelected[i])
-				fastTracksPOCPhaseOffset[i] =
-					wrapFastTracksPOCRow(fastTracksPOCSourceRow[i] - masterSourceRow);
+				fastTracksPOCPhaseOffset[i] = wrapFastTracksPOCRow(
+					fastTracksPOCSourceRow[i] - getFastTracksPOCMasterSourceRowForChannel(i));
 		}
 	}
 
+	if (audioWasntLocked)
+		unlockAudio();
+
 	ui.updatePatternEditor = true;
+	changeLogoType(config.id_FastLogo);
 }
 
 static const note_t *getFastTracksPOCNote(int32_t channelIndex, int32_t sourceRow)
@@ -2617,10 +2659,21 @@ void tickReplayer(void) // periodically called from audio callback
 		{
 			if (fastTracksPOCIsEnabled(i))
 			{
-				const int32_t fastRow =
-					wrapFastTracksPOCRow((song.row * 2) + fastTracksPOCPhaseOffset[i]);
-				fastTracksPOCSourceRow[i] = fastRow % song.currNumRows;
-				getNewNote(ch, getFastTracksPOCNote(i, fastRow));
+				const int32_t fastRow = wrapFastTracksPOCRow(
+					getFastTracksPOCMasterSourceRowForChannel(i) + fastTracksPOCPhaseOffset[i]);
+
+				/* A 3:4 clock must hold one source row during each four-row
+				** master cycle. Do not retrigger that held row. */
+				if (i == 7 && fastRow == fastTracksPOCSourceRow[i])
+				{
+					/* This is still tick zero. Hold the current voice without
+					** retriggering the note or faking a nonzero effect tick. */
+				}
+				else
+				{
+					fastTracksPOCSourceRow[i] = fastRow;
+					getNewNote(ch, getFastTracksPOCNote(i, fastRow));
+				}
 			}
 			else
 			{
@@ -2636,6 +2689,7 @@ void tickReplayer(void) // periodically called from audio callback
 		for (int32_t i = 0; i < song.numChannels; i++, ch++)
 		{
 			const bool fastTracksHalfRow =
+				i != 7 &&
 				fastTracksPOCIsEnabled(i) &&
 				song.speed >= 2 &&
 				song.pattDelTime2 == 0 &&

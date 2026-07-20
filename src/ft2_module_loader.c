@@ -16,6 +16,7 @@
 #include "ft2_sample_ed.h"
 #include "ft2_wav_renderer.h"
 #include "ft2_pattern_ed.h"
+#include "ft2_replayer.h"
 #include "ft2_gui.h"
 #include "ft2_diskop.h"
 #include "ft2_sample_loader.h"
@@ -479,6 +480,7 @@ static void setupLoadedModule(void)
 
 	resetChannels();
 	setSongPos(0, 0, RESET_SONG_TICK);
+	fastTracksPOCResetForLoadedModule();
 	setMixerBPM(song.BPM);
 
 	editor.tmpPattern = editor.editPattern; // set kludge variable

@@ -16,6 +16,7 @@ extern const uint8_t font8BMP[368]; // small font for piano key and Nibbles (sna
 extern const uint8_t ft2AboutLogoBMP[29204];
 extern const uint8_t ft2ByBadgesBMP[1916];
 extern const uint8_t ft2LogoBadgesBMP[6260];
+extern const uint8_t fastTracksLogoBadgesBMP[10584];
 
 // ft2_bmp_mouse.c
 extern const uint8_t mouseCursorsBMP[3444];
