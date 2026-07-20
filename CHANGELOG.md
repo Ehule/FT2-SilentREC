@@ -6,6 +6,27 @@ This project is under active development. Experimental features are identified c
 
 ## Unreleased
 
+### Fixed — Fast Tracks suspend/resume phase retention
+
+- The global Fast Tracks logo now freezes each selected track's private master-row phase while suspended.
+- Resuming no longer reconstructs slower-ratio phase from the current global song row.
+- Ratios such as `1:2`, `2:3`, and `3:4` now retain their hidden denominator position as well as their visible source row.
+- Shift-click phase reset still deliberately aligns selected Fast Tracks to the current master transport.
+
+### Added — First per-track ratio bank
+
+- Added per-track rational ratio state for the first eight Fast Tracks.
+- Added an initial live ratio bank: `1:2`, `2:3`, `3:4`, `1:1`, and `2:1`.
+- Added `Alt+Shift+1` through `Alt+Shift+8` to cycle the corresponding track through the ratio bank while preserving its current private source-row phase.
+- Replaced the Track 8-only `3:4` special case with shared numerator/denominator lookup used by every Fast Track.
+- Updated the pattern status display to show every active ratio as `source rows : master rows`.
+
+### Current timing boundary
+
+- Ratios at or below `1:1` use master-row resolution and correctly hold source rows without retriggering them.
+- `2:1` retains the proven half-row tick path.
+- Faster non-integer ratios such as `3:2`, `4:3`, and `5:4` still require the planned persistent tick-phase accumulator and are deliberately not faked by this milestone.
+
 ### Added — Fast Tracks experimental milestone
 
 - Added independent 2× playback transports for Tracks 1–8.

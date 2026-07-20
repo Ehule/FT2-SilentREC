@@ -18,3 +18,12 @@ It's important that you don't change the palette colors in any of these
 BMPs (except ft2AboutLogo.bmp which is converted to true-color internally).
 Doing so will mess up the "pixel color -> FT2 palette number" conversion
 when unpacking the graphics on runtime.
+
+Tapehead Edition Fast Tracks logo:
+- Editable source: fastTracksLogoBadges.bmp
+- Embedded array: ../ft2_bmp_logo.c (fastTracksLogoBadgesBMP)
+- After editing the BMP, run this from the repository root:
+    python3 scripts/update_fasttracks_logo.py
+
+The script verifies that the image remains a 154x128, 4-bit indexed,
+BI_RLE4-compressed BMP before replacing the embedded byte array.

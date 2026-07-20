@@ -35,7 +35,7 @@ Disabling an individual Fast Track returns it to the shared master row. Re-enabl
 
 Future global controls are intended to distinguish these operations:
 
-- **Suspend/resume:** temporarily return all selected tracks to normal presentation and playback while retaining their private Fast Tracks phase state.
+- **Suspend/resume:** temporarily return all selected tracks to normal presentation and playback while retaining their private source row and denominator phase state.
 - **Phase reset:** align all selected Fast Tracks to a common source position.
 - **Select all:** arm or disarm the first eight tracks without erasing future per-track ratio settings.
 
@@ -99,3 +99,13 @@ Useful checks include:
 - compile and run the same checkpoint on Linux and Windows.
 
 Internally, this test has acquired the accidental nickname **Proof of Contracept**: the test that ensures no unrelated behavior is born from a Fast Tracks change.
+
+## First per-track ratio bank
+
+Each of the first eight Fast Tracks now owns a rational `source rows : master rows` ratio. Use `Alt+Shift+1` through `Alt+Shift+8` to cycle the corresponding track through:
+
+`1:2 → 2:3 → 3:4 → 1:1 → 2:1`
+
+Changing ratio retains the track's current private source row and derives a new live phase offset from that position. This makes ratio changes performable rather than forcing the track back to a clean master alignment.
+
+Ratios at or below `1:1` are currently resolved at master-row boundaries. `2:1` uses the established half-row tick event. Faster rational ratios such as `3:2` are reserved for the next transport milestone, where a persistent tick-phase accumulator can implement them without timing approximations.

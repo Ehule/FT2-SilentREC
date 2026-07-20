@@ -73,6 +73,8 @@ Ctrl+Shift+1 through Ctrl+Shift+8
 
 to toggle Fast Tracks for Tracks 1–8. The modifier keys can be held while rolling across the number keys, making it easy to engage or disengage several tracks quickly.
 
+Use **Alt+Shift+1** through **Alt+Shift+8** to cycle a selected track through the first rational ratio bank: `1:2`, `2:3`, `3:4`, `1:1`, and `2:1`.
+
 Each active Fast Track displays:
 
 - an independently scrolling pattern column;
