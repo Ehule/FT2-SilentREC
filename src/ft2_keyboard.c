@@ -27,6 +27,7 @@
 #include "ft2_sample_ed_features.h"
 #include "ft2_midi.h"
 #include "ft2_structs.h"
+#include "ft2_pattern_draw.h"
 
 keyb_t keyb; // globalized
 
@@ -908,6 +909,20 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 
 		case SDLK_e:
 		{
+			/*
+			** Tape Head Edition: extract from the current sample cursor to
+			** the end into a newly allocated instrument.
+			*/
+			if (keyb.leftShiftPressed && !keyb.leftAltPressed && ui.sampleEditorShown)
+			{
+				if (keyb.leftCtrlPressed)
+					extractSmpFromCursorToSample();
+				else
+					extractSmpFromCursorToInstr();
+
+				return true;
+			}
+
 			if (keyb.leftAltPressed)
 			{
 				jumpToChannel(2);
@@ -1200,10 +1215,13 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 			** Tape Head Edition: extract the selected sample range to a
 			** newly allocated instrument while remaining on the master.
 			*/
-			if (keyb.leftShiftPressed && !keyb.leftCtrlPressed &&
-				!keyb.leftAltPressed)
+			if (keyb.leftShiftPressed && !keyb.leftAltPressed && ui.sampleEditorShown)
 			{
-				extractSmpRangeToInstr();
+				if (keyb.leftCtrlPressed)
+					extractSmpRangeToSample();
+				else
+					extractSmpRangeToInstr();
+
 				return true;
 			}
 

@@ -2083,7 +2083,176 @@ static void makeExtractInstrName(int16_t srcInstr, char *dstName)
 	strcpy(dstName, "Extracted");
 }
 
-void extractSmpRangeToInstr(void)
+
+static int16_t findExtractDestinationSample(const instr_t *ins, int16_t srcSmpNum)
+{
+	/* Prefer empty slots after the source, then wrap around to earlier gaps. */
+	for (int16_t i = srcSmpNum + 1; i < MAX_SMP_PER_INST; i++)
+	{
+		if (ins->smp[i].dataPtr == NULL && ins->smp[i].length <= 0)
+			return i;
+	}
+
+	for (int16_t i = 0; i < srcSmpNum; i++)
+	{
+		if (ins->smp[i].dataPtr == NULL && ins->smp[i].length <= 0)
+			return i;
+	}
+
+	return -1;
+}
+
+static bool extractSampleNameExists(const instr_t *ins, const char *name)
+{
+	for (int16_t i = 0; i < MAX_SMP_PER_INST; i++)
+	{
+		if (strncmp(ins->smp[i].name, name, 22) == 0)
+			return true;
+	}
+
+	return false;
+}
+
+static void makeExtractSampleName(const instr_t *ins, const sample_t *srcSmp, char *dstName)
+{
+	char baseName[23];
+	memcpy(baseName, srcSmp->name, 22);
+	baseName[22] = '\0';
+
+	for (int32_t i = 21; i >= 0; i--)
+	{
+		if (baseName[i] == ' ' || baseName[i] == '\t')
+			baseName[i] = '\0';
+		else if (baseName[i] != '\0')
+			break;
+	}
+
+	char *dot = strrchr(baseName, '.');
+	if (dot != NULL && dot != baseName)
+		*dot = '\0';
+
+	if (baseName[0] == '\0')
+		strcpy(baseName, "Sample");
+
+	for (int32_t number = 1; number <= 9999; number++)
+	{
+		char suffix[16];
+		snprintf(suffix, sizeof (suffix), "-%02d", number);
+
+		const size_t suffixLen = strlen(suffix);
+		size_t baseLen = strlen(baseName);
+		if (baseLen + suffixLen > 22)
+			baseLen = 22 - suffixLen;
+
+		memcpy(dstName, baseName, baseLen);
+		memcpy(&dstName[baseLen], suffix, suffixLen);
+		dstName[baseLen + suffixLen] = '\0';
+
+		if (!extractSampleNameExists(ins, dstName))
+			return;
+	}
+
+	strcpy(dstName, "Extracted");
+}
+
+static void extractSmpRangeToSampleInternal(int32_t rangeStart, int32_t rangeEnd)
+{
+	const int16_t srcInstr = editor.curInstr;
+	const int16_t srcSmpNum = editor.curSmp;
+
+	if (srcInstr <= 0 || instr[srcInstr] == NULL)
+		return;
+
+	instr_t *ins = instr[srcInstr];
+	sample_t *srcSmp = &ins->smp[srcSmpNum];
+	if (srcSmp->dataPtr == NULL || srcSmp->length <= 0)
+		return;
+
+	if (rangeStart > rangeEnd)
+	{
+		const int32_t tmp = rangeStart;
+		rangeStart = rangeEnd;
+		rangeEnd = tmp;
+	}
+
+	rangeStart = CLAMP(rangeStart, 0, srcSmp->length);
+	rangeEnd = CLAMP(rangeEnd, 0, srcSmp->length);
+	if (rangeEnd <= rangeStart)
+		return;
+
+	const int16_t dstSmpNum = findExtractDestinationSample(ins, srcSmpNum);
+	if (dstSmpNum < 0)
+	{
+		okBox(0, "System message", "No free sample slots available!", NULL);
+		return;
+	}
+
+	const int32_t extractLength = rangeEnd - rangeStart;
+	const bool sample16Bit = !!(srcSmp->flags & SAMPLE_16BIT);
+	char newSampleName[23];
+	makeExtractSampleName(ins, srcSmp, newSampleName);
+
+	pauseAudio();
+	unfixSample(srcSmp);
+
+	sample_t *dstSmp = &ins->smp[dstSmpNum];
+	memcpy(dstSmp, srcSmp, sizeof (sample_t));
+	dstSmp->origDataPtr = NULL;
+	dstSmp->dataPtr = NULL;
+	dstSmp->length = extractLength;
+
+	if (!allocateSmpData(dstSmp, extractLength, sample16Bit))
+	{
+		memset(dstSmp, 0, sizeof (sample_t));
+		fixSample(srcSmp);
+		resumeAudio();
+		okBox(0, "System message", "Not enough memory!", NULL);
+		return;
+	}
+
+	memcpy(dstSmp->dataPtr,
+		&srcSmp->dataPtr[rangeStart << sample16Bit],
+		extractLength << sample16Bit);
+
+	if (srcSmp->loopLength > 0)
+	{
+		const int32_t srcLoopStart = srcSmp->loopStart;
+		const int32_t srcLoopEnd = srcSmp->loopStart + srcSmp->loopLength;
+		const int32_t clippedLoopStart = MAX(srcLoopStart, rangeStart);
+		const int32_t clippedLoopEnd = MIN(srcLoopEnd, rangeEnd);
+
+		if (clippedLoopEnd > clippedLoopStart)
+		{
+			dstSmp->loopStart = clippedLoopStart - rangeStart;
+			dstSmp->loopLength = clippedLoopEnd - clippedLoopStart;
+		}
+		else
+		{
+			dstSmp->loopStart = 0;
+			dstSmp->loopLength = 0;
+			DISABLE_LOOP(dstSmp->flags);
+		}
+	}
+	else
+	{
+		dstSmp->loopStart = 0;
+		dstSmp->loopLength = 0;
+		DISABLE_LOOP(dstSmp->flags);
+	}
+
+	snprintf(dstSmp->name, sizeof (dstSmp->name), "%s", newSampleName);
+	fixSample(dstSmp);
+	fixSample(srcSmp);
+	resumeAudio();
+
+	/* Keep the source sample, cursor/range and waveform view untouched. */
+	if (ui.instrSwitcherShown)
+		updateInstrumentSwitcher();
+
+	setSongModifiedFlag();
+}
+
+static void extractSmpRangeToInstrInternal(int32_t rangeStart, int32_t rangeEnd)
 {
 	const int16_t srcInstr = editor.curInstr;
 	const int16_t srcSmpNum = editor.curSmp;
@@ -2095,9 +2264,6 @@ void extractSmpRangeToInstr(void)
 
 	if (srcSmp->dataPtr == NULL || srcSmp->length <= 0)
 		return;
-
-	int32_t rangeStart = smpEd_Rx1;
-	int32_t rangeEnd = smpEd_Rx2;
 
 	if (rangeStart > rangeEnd)
 	{
@@ -2245,6 +2411,35 @@ void extractSmpRangeToInstr(void)
 		updateInstrumentSwitcher();
 
 	setSongModifiedFlag();
+}
+
+void extractSmpRangeToInstr(void)
+{
+	extractSmpRangeToInstrInternal(smpEd_Rx1, smpEd_Rx2);
+}
+
+void extractSmpFromCursorToInstr(void)
+{
+	sample_t *s = getCurSample();
+	if (s == NULL || s->dataPtr == NULL || s->length <= 0)
+		return;
+
+	/* A simple click collapses the sample range, making Rx1 the cursor. */
+	extractSmpRangeToInstrInternal(smpEd_Rx1, s->length);
+}
+
+void extractSmpRangeToSample(void)
+{
+	extractSmpRangeToSampleInternal(smpEd_Rx1, smpEd_Rx2);
+}
+
+void extractSmpFromCursorToSample(void)
+{
+	sample_t *s = getCurSample();
+	if (s == NULL || s->dataPtr == NULL || s->length <= 0)
+		return;
+
+	extractSmpRangeToSampleInternal(smpEd_Rx1, s->length);
 }
 
 void sampCopy(void)

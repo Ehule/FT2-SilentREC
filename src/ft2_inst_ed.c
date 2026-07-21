@@ -2716,6 +2716,7 @@ void toggleInstEditorExt(void)
 }
 
 static void clearInstrumentFromSwitcher(int16_t insNum);
+static void clearSampleFromSwitcher(int16_t smpNum);
 
 static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 {
@@ -2784,8 +2785,16 @@ static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 			if ((mouse.y-99) % 11 == 10)
 				return true; // we clicked on the one-pixel spacer
 
-			// destionation sample
+			// destination sample
 			newEntry = editor.sampleBankOffset + (uint8_t)((mouse.y - 99) / 11);
+
+			/* Tape Head Edition: clear clicked sample without selecting it. */
+			if (mouse.rightButtonPressed && keyb.leftShiftPressed)
+			{
+				clearSampleFromSwitcher(newEntry);
+				return true;
+			}
+
 			if (editor.curSmp != newEntry)
 			{
 				editor.curSmp = newEntry;
@@ -2818,6 +2827,42 @@ static bool testInstrSwitcherNormal(void) // Welcome to the Jungle
 	}
 
 	return false;
+}
+
+/*
+** Tape Head Edition:
+**
+** Shift+right-click clears the clicked sample slot without changing the
+** currently selected sample.
+*/
+static void clearSampleFromSwitcher(int16_t smpNum)
+{
+	if (editor.curInstr <= 0 || editor.curInstr > MAX_INST ||
+		smpNum < 0 || smpNum >= MAX_SMP_PER_INST || instr[editor.curInstr] == NULL)
+	{
+		return;
+	}
+
+	sample_t *s = &instr[editor.curInstr]->smp[smpNum];
+	if (s->dataPtr == NULL && s->length == 0 && s->name[0] == '\0')
+		return;
+
+	if (okBox(1, "System request", "Clear sample?", NULL) != 1)
+		return;
+
+	freeSample(editor.curInstr, smpNum);
+
+	if (smpNum == editor.curSmp)
+	{
+		updateNewSample();
+	}
+	else if (ui.instrSwitcherShown)
+	{
+		/* Redraw the list while leaving the source sample and waveform untouched. */
+		updateInstrumentSwitcher();
+	}
+
+	setSongModifiedFlag();
 }
 
 /*
