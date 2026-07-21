@@ -7,7 +7,7 @@
 typedef struct keyb_t
 {
 	uint8_t keyRepeat, keyPressed;
-	bool ignoreCurrKeyUp, ignoreTextEditKey, numPadPlusPressed;
+	bool ignoreCurrKeyUp, ignoreTextEditKey, ignoreNoteEnterKey, numPadPlusPressed;
 	bool keyModifierDown, leftCommandPressed, leftWinKeyDown;
 	bool leftShiftPressed, leftCtrlPressed, leftAltPressed;
 } keyb_t;

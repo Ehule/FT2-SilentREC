@@ -40,6 +40,10 @@ void recordNote(uint8_t note, int8_t vol);
 // when the cursor is at the note slot
 static bool testNoteKeys(SDL_Scancode scancode)
 {
+	// prevent Enter/Return used to close text editing from triggering a sample
+	if (scancode == SDL_SCANCODE_RETURN && keyb.ignoreNoteEnterKey)
+		return false;
+
 	const int8_t noteNum = scancodeKeyToNote(scancode);
 	if (noteNum == NOTE_OFF)
 	{

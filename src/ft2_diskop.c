@@ -2168,8 +2168,6 @@ static void setDiskOpItem(uint8_t item)
 	}
 
 	textBoxes[TB_DISKOP_FILENAME].textPtr = FReq_FileName;
-	FReq_ShowAllFiles = false;
-
 	if (ui.diskOpShown)
 	{
 		editor.diskOpReadDir = true;

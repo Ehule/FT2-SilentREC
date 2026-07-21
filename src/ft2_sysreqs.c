@@ -322,6 +322,7 @@ int16_t okBox(int16_t type, const char *headline, const char *text, void (*check
 					returnVal = 1;
 					ui.sysReqShown = false;
 					keyb.ignoreCurrKeyUp = true; // don't handle key up event for any keys that were pressed
+					keyb.ignoreNoteEnterKey = true; // prevent Enter from triggering a sample
 				}
 
 				for (uint16_t i = 0; i < numButtons; i++)
@@ -566,6 +567,7 @@ int16_t inputBox(int16_t type, const char *headline, char *edText, uint16_t maxS
 					returnVal = 1;
 					ui.sysReqShown = false;
 					keyb.ignoreCurrKeyUp = true; // don't handle key up event for any keys that were pressed
+					keyb.ignoreNoteEnterKey = true; // prevent Enter from triggering a sample
 				}
 
 				if (editor.editTextFlag)
