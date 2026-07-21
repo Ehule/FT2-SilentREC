@@ -103,6 +103,11 @@ void keyUpHandler(SDL_Scancode scancode, SDL_Keycode keycode)
 	if (scancode == SDL_SCANCODE_KP_PLUS)
 		keyb.numPadPlusPressed = false;
 
+	/* Tracks 1..8 remain momentary slip clutches. The global transmission
+	** clutch is latched on key-down, so releasing 0 intentionally does nothing. */
+	if (scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_8)
+		fastTracksPOCClutchRelease((int32_t)(scancode - SDL_SCANCODE_1));
+
 	keyb.keyRepeat = false;
 
 	(void)keycode;
@@ -165,6 +170,35 @@ void keyDownHandler(SDL_Scancode scancode, SDL_Keycode keycode, bool keyWasRepea
 
 	if (scancode == SDL_SCANCODE_KP_PLUS)
 		keyb.numPadPlusPressed = true;
+
+	/* Fast Tracks transmission clutch: Ctrl+Alt+0 toggles a latched global
+	** clutch. While latched, selected Fast Tracks are heard at master transport
+	** speed while their private ratio transports keep drifting underneath. */
+	if (keyb.leftCtrlPressed && keyb.leftAltPressed && scancode == SDL_SCANCODE_0 &&
+		(fastTracksPOCAnyEnabled() || fastTracksPOCTransmissionClutchIsLatched()))
+	{
+		if (!keyWasRepeated)
+			fastTracksPOCTransmissionClutchToggle();
+
+		return;
+	}
+
+	/* Fast Tracks clutch: only claim Ctrl+Alt+1..8 when that numbered track is
+	** currently active in Fast Tracks. Otherwise preserve stock FT2 effect entry,
+	** including key repeat. While clutching, consume repeat events so they cannot
+	** fall through into the pattern editor. */
+	if (keyb.leftCtrlPressed && keyb.leftAltPressed &&
+		scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_8)
+	{
+		const int32_t clutchChannel = (int32_t)(scancode - SDL_SCANCODE_1);
+		if (fastTracksPOCIsEnabled(clutchChannel))
+		{
+			if (!keyWasRepeated)
+				fastTracksPOCClutchPress(clutchChannel);
+
+			return;
+		}
+	}
 
 	// Fast Tracks: Alt+Shift+1..8 cycles that track's ratio.
 	if (!keyWasRepeated && keyb.leftAltPressed && keyb.leftShiftPressed &&

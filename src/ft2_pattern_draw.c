@@ -837,6 +837,7 @@ static void drawFastTracksPOCStatus(uint16_t yPos)
 		const uint8_t numerator = fastTracksPOCGetRatioNumerator(fastTrackChannel);
 		const uint8_t denominator = fastTracksPOCGetRatioDenominator(fastTrackChannel);
 		const int32_t sourceRow = fastTracksPOCGetSourceRow(fastTrackChannel);
+		const bool clutchHeld = fastTracksPOCIsClutched(fastTrackChannel);
 
 		/*
 		** Keep the Fast Tracks instrument panel readable while pattern data
@@ -844,7 +845,8 @@ static void drawFastTracksPOCStatus(uint16_t yPos)
 		** so it remains compatible with every FT2 palette/theme.
 		*/
 		const uint16_t panelWidth = (uint16_t)(ui.patternChannelWidth - 2);
-		fillRect((uint16_t)xPos, yPos, panelWidth, 8, PAL_DESKTOP);
+		const uint8_t panelColor = clutchHeld ? PAL_BLCKMRK : PAL_DESKTOP;
+		fillRect((uint16_t)xPos, yPos, panelWidth, 8, panelColor);
 
 		/*
 		** Use FT2's tiny font so two-digit ratios still fit before the phase
@@ -899,7 +901,10 @@ static void drawFastTracksPOCStatus(uint16_t yPos)
 		}
 
 		const uint16_t markerX = (uint16_t)(scaleX + (phasePos * 2));
-		const uint32_t markerColor = breatheColorToward(0xFFFF0000, video.palette[PAL_DESKTOP]);
+		/* Reuse FT2's configurable block-mark color for the temporary clutch
+		** state; red retains its normal phase meaning after release. */
+		const uint32_t markerBaseColor = clutchHeld ? video.palette[PAL_BLCKMRK] : 0xFFFF0000;
+		const uint32_t markerColor = breatheColorToward(markerBaseColor, video.palette[panelColor]);
 		if (fastTracksPOCIsMasterAligned(fastTrackChannel))
 		{
 			// Larger capital X for exact row alignment with the master transport.
@@ -1051,7 +1056,10 @@ void writePattern(int32_t currRow, int32_t currPattern)
 
 				if (fastTrackVisible)
 				{
-					const uint32_t fastTrackColor = video.palette[PAL_BLCKTXT];
+					const bool clutchHeld = fastTracksPOCIsClutched(absoluteChannel);
+					const uint32_t fastTrackColor = clutchHeld
+						? video.palette[PAL_BLCKMRK]
+						: video.palette[PAL_BLCKTXT];
 
 					if (drawPtr->note != 0)
 						noteColor = fastTrackColor;

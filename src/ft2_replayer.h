@@ -70,10 +70,16 @@ enum
 bool fastTracksPOCMasterIsEnabled(void);
 bool fastTracksPOCIsSelected(int32_t channelIndex);
 bool fastTracksPOCIsEnabled(int32_t channelIndex);
+bool fastTracksPOCIsClutched(int32_t channelIndex);
+bool fastTracksPOCTransmissionClutchIsLatched(void);
+bool fastTracksPOCAnyEnabled(void);
 int32_t fastTracksPOCGetSourceRow(int32_t channelIndex);
 bool fastTracksPOCIsMasterAligned(int32_t channelIndex);
 uint8_t fastTracksPOCGetRatioNumerator(int32_t channelIndex);
 uint8_t fastTracksPOCGetRatioDenominator(int32_t channelIndex);
+void fastTracksPOCClutchPress(int32_t channelIndex);
+void fastTracksPOCClutchRelease(int32_t channelIndex);
+void fastTracksPOCTransmissionClutchToggle(void);
 void fastTracksPOCCycleRatio(int32_t channelIndex);
 void fastTracksPOCToggle(int32_t channelIndex);
 void fastTracksPOCResetForLoadedModule(void);

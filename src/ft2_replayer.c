@@ -110,6 +110,7 @@ static const fastTracksRatio_t fastTracksPOCRatioBank[] =
 typedef struct fastTracksChannelState_t
 {
 	bool selected;
+	bool clutchHeld;
 	int32_t sourceRow;
 	int32_t tickAccumulator;
 	uint16_t lastTPL;
@@ -118,7 +119,7 @@ typedef struct fastTracksChannelState_t
 } fastTracksChannelState_t;
 
 #define FAST_TRACKS_DEFAULT_CHANNEL_STATE \
-	{ false, 0, 0, 0, false, FAST_TRACKS_DEFAULT_RATIO_INDEX }
+	{ false, false, 0, 0, 0, false, FAST_TRACKS_DEFAULT_RATIO_INDEX }
 
 static volatile fastTracksChannelState_t fastTracksPOCChannels[FAST_TRACKS_MAX_CHANNELS] =
 {
@@ -127,6 +128,10 @@ static volatile fastTracksChannelState_t fastTracksPOCChannels[FAST_TRACKS_MAX_C
 	FAST_TRACKS_DEFAULT_CHANNEL_STATE, FAST_TRACKS_DEFAULT_CHANNEL_STATE,
 	FAST_TRACKS_DEFAULT_CHANNEL_STATE, FAST_TRACKS_DEFAULT_CHANNEL_STATE
 };
+
+/* Latched global transmission clutch. While active, audible playback follows
+** the master transport, but selected private transports keep advancing unseen. */
+static volatile bool fastTracksPOCTransmissionClutchLatched;
 
 static bool fastTracksPOCChannelIsValid(int32_t channelIndex)
 {
@@ -256,10 +261,38 @@ bool fastTracksPOCIsEnabled(int32_t channelIndex)
 	return fastTracksPOCMasterEnabled && fastTracksPOCIsSelected(channelIndex);
 }
 
+bool fastTracksPOCIsClutched(int32_t channelIndex)
+{
+	const volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
+	return state != NULL && (state->clutchHeld || fastTracksPOCTransmissionClutchLatched);
+}
+
+bool fastTracksPOCTransmissionClutchIsLatched(void)
+{
+	return fastTracksPOCTransmissionClutchLatched;
+}
+
+bool fastTracksPOCAnyEnabled(void)
+{
+	if (!fastTracksPOCMasterEnabled)
+		return false;
+
+	for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
+	{
+		if (fastTracksPOCChannels[i].selected)
+			return true;
+	}
+
+	return false;
+}
+
 int32_t fastTracksPOCGetSourceRow(int32_t channelIndex)
 {
 	const volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
-	return state != NULL ? state->sourceRow : song.row;
+	if (state == NULL || state->clutchHeld || fastTracksPOCTransmissionClutchLatched)
+		return song.row;
+
+	return state->sourceRow;
 }
 
 bool fastTracksPOCIsMasterAligned(int32_t channelIndex)
@@ -267,6 +300,8 @@ bool fastTracksPOCIsMasterAligned(int32_t channelIndex)
 	const volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
 	if (state == NULL)
 		return false;
+	if (state->clutchHeld || fastTracksPOCTransmissionClutchLatched)
+		return true;
 
 	const uint16_t masterTPL = song.speed > 0 ? song.speed : 1;
 	int32_t masterElapsedTicks = masterTPL - song.tick;
@@ -289,6 +324,74 @@ uint8_t fastTracksPOCGetRatioNumerator(int32_t channelIndex)
 uint8_t fastTracksPOCGetRatioDenominator(int32_t channelIndex)
 {
 	return getFastTracksPOCRatio(channelIndex)->denominator;
+}
+
+void fastTracksPOCClutchPress(int32_t channelIndex)
+{
+	volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
+	if (state == NULL || !state->selected || state->clutchHeld)
+		return;
+
+	const bool audioWasntLocked = !audio.locked;
+	if (audioWasntLocked)
+		lockAudio();
+
+	/* While held, playback falls through to the ordinary master transport.
+	** The private transport is left untouched until release, where it is
+	** re-engaged from the exact master-relative phase. */
+	state->clutchHeld = true;
+
+	if (audioWasntLocked)
+		unlockAudio();
+
+	ui.updatePatternEditor = true;
+}
+
+void fastTracksPOCClutchRelease(int32_t channelIndex)
+{
+	volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
+	if (state == NULL || !state->clutchHeld)
+		return;
+
+	const bool audioWasntLocked = !audio.locked;
+	if (audioWasntLocked)
+		lockAudio();
+
+	const uint16_t masterTPL = song.speed > 0 ? song.speed : 1;
+	int32_t masterElapsedTicks = masterTPL - song.tick;
+	if (masterElapsedTicks < 0)
+		masterElapsedTicks = 0;
+	else if (masterElapsedTicks >= masterTPL)
+		masterElapsedTicks = masterTPL - 1;
+
+	const fastTracksRatio_t *ratio = getFastTracksPOCRatio(channelIndex);
+	syncFastTracksPOCTransportToMaster(state, ratio, masterTPL, masterElapsedTicks);
+	state->clutchHeld = false;
+
+	if (audioWasntLocked)
+		unlockAudio();
+
+	ui.updatePatternEditor = true;
+}
+
+void fastTracksPOCTransmissionClutchToggle(void)
+{
+	if (!fastTracksPOCAnyEnabled() && !fastTracksPOCTransmissionClutchLatched)
+		return;
+
+	const bool audioWasntLocked = !audio.locked;
+	if (audioWasntLocked)
+		lockAudio();
+
+	/* Do not touch any private row, accumulator or ratio here. The entire point
+	** of the transmission clutch is that those hidden transports keep drifting
+	** while audible playback temporarily rides the master transport. */
+	fastTracksPOCTransmissionClutchLatched = !fastTracksPOCTransmissionClutchLatched;
+
+	if (audioWasntLocked)
+		unlockAudio();
+
+	ui.updatePatternEditor = true;
 }
 
 void fastTracksPOCCycleRatio(int32_t channelIndex)
@@ -342,6 +445,7 @@ void fastTracksPOCToggle(int32_t channelIndex)
 	}
 	else
 	{
+		state->clutchHeld = false;
 		state->selected = false;
 	}
 
@@ -353,13 +457,17 @@ void fastTracksPOCToggle(int32_t channelIndex)
 
 void fastTracksPOCResetForLoadedModule(void)
 {
+	fastTracksPOCTransmissionClutchLatched = false;
 	/*
 	** A newly loaded module has a different pattern map and row count.
 	** Keep the user's selected tracks and master state, but discard source
 	** rows and phase offsets that belonged to the previous module.
 	*/
 	for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
+	{
+		fastTracksPOCChannels[i].clutchHeld = false;
 		resetFastTracksPOCTransport(&fastTracksPOCChannels[i], song.row);
+	}
 }
 
 void fastTracksPOCMasterToggle(void)
@@ -2861,7 +2969,19 @@ void tickReplayer(void) // periodically called from audio callback
 	ch = channel;
 	for (int32_t i = 0; i < song.numChannels; i++, ch++)
 	{
-		if (fastTracksPOCIsEnabled(i) && song.pattDelTime2 == 0)
+		const bool fastTrackEnabled = fastTracksPOCIsEnabled(i);
+		const bool transmissionClutched = fastTrackEnabled && fastTracksPOCTransmissionClutchLatched;
+
+		if (transmissionClutched && song.pattDelTime2 == 0)
+		{
+			/* Keep the alternate transport running silently while audible playback
+			** rides the master. Re-engagement therefore bites into the naturally
+			** accumulated Dirty Sync position instead of snapping or resetting. */
+			if (advanceFastTracksPOCTransport(i, fastTracksTPL))
+				ui.updatePatternEditor = true;
+		}
+
+		if (fastTrackEnabled && !fastTracksPOCIsClutched(i) && song.pattDelTime2 == 0)
 		{
 			/* Every Fast Track ratio, including 1:1 and 2:1, advances through
 			** this same per-tick rational transport. */
