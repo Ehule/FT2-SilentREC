@@ -61,21 +61,6 @@ static note_t nilPatternLine[MAX_CHANNELS];
 ** machine without destroying the user's per-track setup.
 */
 static volatile bool fastTracksPOCMasterEnabled = false;
-static volatile bool fastTracksPOCSelected[FAST_TRACKS_MAX_CHANNELS] = { false, false, false, false, false, false, false, false };
-static volatile int32_t fastTracksPOCSourceRow[FAST_TRACKS_MAX_CHANNELS];
-
-/* Unified rational transport state.
-**
-** Every selected track advances from the same tick-domain accumulator:
-**   accumulator += numerator
-**   threshold    = denominator * TPL
-**
-** Crossing the threshold advances one private source row and retains the
-** remainder. This gives slower, faster and odd ratios one exact transport
-** path without floating point or ratio-specific tick tests. */
-static volatile int32_t fastTracksPOCTickAccumulator[FAST_TRACKS_MAX_CHANNELS];
-static volatile uint16_t fastTracksPOCLastTPL[FAST_TRACKS_MAX_CHANNELS];
-static volatile bool fastTracksPOCTransportStarted[FAST_TRACKS_MAX_CHANNELS];
 
 /* Symmetric rational ratio bank. All entries use the unified tick transport. */
 typedef struct fastTracksRatio_t
@@ -93,22 +78,85 @@ static const fastTracksRatio_t fastTracksPOCRatioBank[] =
 	{ 4, 5 },
 	{ 5, 6 },
 	{ 7, 8 },
+	{ 15, 16 },
 
 	/* Center: master speed with an independent private phase. */
 	{ 1, 1 },
 
 	/* Faster than the master transport, mirrored around 1:1. */
+	{ 17, 16 },
 	{ 8, 7 },
 	{ 6, 5 },
 	{ 5, 4 },
 	{ 4, 3 },
 	{ 3, 2 },
-	{ 2, 1 }
+	{ 2, 1 },
+
+	/* Extreme high-speed transports for deliberate oddball behavior. */
+	{ 3, 1 },
+	{ 5, 1 }
 };
 
 #define FAST_TRACKS_RATIO_COUNT ((int32_t)(sizeof (fastTracksPOCRatioBank) / sizeof (fastTracksPOCRatioBank[0])))
+#define FAST_TRACKS_DEFAULT_RATIO_INDEX 14 /* 2:1 */
+#define FAST_TRACKS_ONE_TO_ONE_RATIO_INDEX 7
 
-static volatile uint8_t fastTracksPOCRatioIndex[FAST_TRACKS_MAX_CHANNELS] = { 12, 12, 12, 12, 12, 12, 12, 12 };
+/*
+** All mutable state belonging to one Fast Track lives together. Keeping the
+** transport, phase, ratio and selection state in one object prevents the
+** parallel arrays from drifting apart and gives the future clutch, pattern
+** effects and 32-track expansion one shared control path.
+*/
+typedef struct fastTracksChannelState_t
+{
+	bool selected;
+	int32_t sourceRow;
+	int32_t tickAccumulator;
+	uint16_t lastTPL;
+	bool transportStarted;
+	uint8_t ratioIndex;
+} fastTracksChannelState_t;
+
+#define FAST_TRACKS_DEFAULT_CHANNEL_STATE \
+	{ false, 0, 0, 0, false, FAST_TRACKS_DEFAULT_RATIO_INDEX }
+
+static volatile fastTracksChannelState_t fastTracksPOCChannels[FAST_TRACKS_MAX_CHANNELS] =
+{
+	FAST_TRACKS_DEFAULT_CHANNEL_STATE, FAST_TRACKS_DEFAULT_CHANNEL_STATE,
+	FAST_TRACKS_DEFAULT_CHANNEL_STATE, FAST_TRACKS_DEFAULT_CHANNEL_STATE,
+	FAST_TRACKS_DEFAULT_CHANNEL_STATE, FAST_TRACKS_DEFAULT_CHANNEL_STATE,
+	FAST_TRACKS_DEFAULT_CHANNEL_STATE, FAST_TRACKS_DEFAULT_CHANNEL_STATE
+};
+
+static bool fastTracksPOCChannelIsValid(int32_t channelIndex)
+{
+	return channelIndex >= 0 && channelIndex < FAST_TRACKS_MAX_CHANNELS;
+}
+
+static volatile fastTracksChannelState_t *getFastTracksPOCChannelState(int32_t channelIndex)
+{
+	if (!fastTracksPOCChannelIsValid(channelIndex))
+		return NULL;
+
+	return &fastTracksPOCChannels[channelIndex];
+}
+
+static void resetFastTracksPOCTransport(volatile fastTracksChannelState_t *state, int32_t sourceRow)
+{
+	state->sourceRow = sourceRow;
+	state->tickAccumulator = 0;
+	state->lastTPL = song.speed > 0 ? song.speed : 1;
+	state->transportStarted = false;
+}
+
+static void syncFastTracksPOCTransportToMaster(volatile fastTracksChannelState_t *state,
+	const fastTracksRatio_t *ratio, uint16_t masterTPL, int32_t masterElapsedTicks)
+{
+	state->sourceRow = song.row;
+	state->tickAccumulator = ratio->denominator * masterElapsedTicks;
+	state->lastTPL = masterTPL;
+	state->transportStarted = true;
+}
 
 static int32_t wrapFastTracksPOCRow(int32_t row)
 {
@@ -124,10 +172,11 @@ static int32_t wrapFastTracksPOCRow(int32_t row)
 
 static const fastTracksRatio_t *getFastTracksPOCRatio(int32_t channelIndex)
 {
-	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
-		return &fastTracksPOCRatioBank[6]; /* 1:1 */
+	const volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
+	if (state == NULL)
+		return &fastTracksPOCRatioBank[FAST_TRACKS_ONE_TO_ONE_RATIO_INDEX];
 
-	return &fastTracksPOCRatioBank[fastTracksPOCRatioIndex[channelIndex] % FAST_TRACKS_RATIO_COUNT];
+	return &fastTracksPOCRatioBank[state->ratioIndex % FAST_TRACKS_RATIO_COUNT];
 }
 
 static int32_t getFastTracksPOCThreshold(int32_t channelIndex, uint16_t tpl)
@@ -139,12 +188,12 @@ static int32_t getFastTracksPOCThreshold(int32_t channelIndex, uint16_t tpl)
 	return ratio->denominator * tpl;
 }
 
-static void rescaleFastTracksPOCAccumulatorForTPL(int32_t channelIndex, uint16_t newTPL)
+static void rescaleFastTracksPOCAccumulatorForTPL(volatile fastTracksChannelState_t *state, uint16_t newTPL)
 {
 	if (newTPL == 0)
 		newTPL = 1;
 
-	uint16_t oldTPL = fastTracksPOCLastTPL[channelIndex];
+	uint16_t oldTPL = state->lastTPL;
 	if (oldTPL == 0)
 		oldTPL = newTPL;
 
@@ -153,38 +202,38 @@ static void rescaleFastTracksPOCAccumulatorForTPL(int32_t channelIndex, uint16_t
 		/* Preserve the same fractional position inside the rational cycle when
 		** Fxx changes TPL. Integer truncation is bounded to less than one
 		** accumulator unit and cannot build up as long-term drift. */
-		fastTracksPOCTickAccumulator[channelIndex] =
-			(int32_t)(((int64_t)fastTracksPOCTickAccumulator[channelIndex] * newTPL) / oldTPL);
+		state->tickAccumulator = (int32_t)(((int64_t)state->tickAccumulator * newTPL) / oldTPL);
 	}
 
-	fastTracksPOCLastTPL[channelIndex] = newTPL;
+	state->lastTPL = newTPL;
 }
 
 static bool advanceFastTracksPOCTransport(int32_t channelIndex, uint16_t tpl)
 {
-	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
+	volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
+	if (state == NULL)
 		return false;
 
-	rescaleFastTracksPOCAccumulatorForTPL(channelIndex, tpl);
+	rescaleFastTracksPOCAccumulatorForTPL(state, tpl);
 
 	/* The first audio tick after selection/reset establishes the starting
 	** row without retriggering it. Every later tick advances the same shared
 	** rational accumulator, including master tick zero. */
-	if (!fastTracksPOCTransportStarted[channelIndex])
+	if (!state->transportStarted)
 	{
-		fastTracksPOCTransportStarted[channelIndex] = true;
+		state->transportStarted = true;
 		return false;
 	}
 
 	const fastTracksRatio_t *ratio = getFastTracksPOCRatio(channelIndex);
 	const int32_t threshold = getFastTracksPOCThreshold(channelIndex, tpl);
-	fastTracksPOCTickAccumulator[channelIndex] += ratio->numerator;
+	state->tickAccumulator += ratio->numerator;
 
 	bool advanced = false;
-	while (fastTracksPOCTickAccumulator[channelIndex] >= threshold)
+	while (state->tickAccumulator >= threshold)
 	{
-		fastTracksPOCTickAccumulator[channelIndex] -= threshold;
-		fastTracksPOCSourceRow[channelIndex] = wrapFastTracksPOCRow(fastTracksPOCSourceRow[channelIndex] + 1);
+		state->tickAccumulator -= threshold;
+		state->sourceRow = wrapFastTracksPOCRow(state->sourceRow + 1);
 		advanced = true;
 	}
 
@@ -198,8 +247,8 @@ bool fastTracksPOCMasterIsEnabled(void)
 
 bool fastTracksPOCIsSelected(int32_t channelIndex)
 {
-	return channelIndex >= 0 && channelIndex < FAST_TRACKS_MAX_CHANNELS &&
-		fastTracksPOCSelected[channelIndex];
+	const volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
+	return state != NULL && state->selected;
 }
 
 bool fastTracksPOCIsEnabled(int32_t channelIndex)
@@ -209,15 +258,14 @@ bool fastTracksPOCIsEnabled(int32_t channelIndex)
 
 int32_t fastTracksPOCGetSourceRow(int32_t channelIndex)
 {
-	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
-		return song.row;
-
-	return fastTracksPOCSourceRow[channelIndex];
+	const volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
+	return state != NULL ? state->sourceRow : song.row;
 }
 
 bool fastTracksPOCIsMasterAligned(int32_t channelIndex)
 {
-	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
+	const volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
+	if (state == NULL)
 		return false;
 
 	const uint16_t masterTPL = song.speed > 0 ? song.speed : 1;
@@ -230,8 +278,7 @@ bool fastTracksPOCIsMasterAligned(int32_t channelIndex)
 	const fastTracksRatio_t *ratio = getFastTracksPOCRatio(channelIndex);
 	const int32_t expectedAccumulator = ratio->denominator * masterElapsedTicks;
 
-	return fastTracksPOCSourceRow[channelIndex] == song.row &&
-		fastTracksPOCTickAccumulator[channelIndex] == expectedAccumulator;
+	return state->sourceRow == song.row && state->tickAccumulator == expectedAccumulator;
 }
 
 uint8_t fastTracksPOCGetRatioNumerator(int32_t channelIndex)
@@ -246,7 +293,8 @@ uint8_t fastTracksPOCGetRatioDenominator(int32_t channelIndex)
 
 void fastTracksPOCCycleRatio(int32_t channelIndex)
 {
-	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
+	volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
+	if (state == NULL)
 		return;
 
 	const bool audioWasntLocked = !audio.locked;
@@ -254,20 +302,20 @@ void fastTracksPOCCycleRatio(int32_t channelIndex)
 		lockAudio();
 
 	const int32_t oldThreshold = getFastTracksPOCThreshold(channelIndex, song.speed);
-	const int32_t oldAccumulator = fastTracksPOCTickAccumulator[channelIndex];
+	const int32_t oldAccumulator = state->tickAccumulator;
 
-	fastTracksPOCRatioIndex[channelIndex] = (uint8_t)((fastTracksPOCRatioIndex[channelIndex] + 1) % FAST_TRACKS_RATIO_COUNT);
+	state->ratioIndex = (uint8_t)((state->ratioIndex + 1) % FAST_TRACKS_RATIO_COUNT);
 
 	/* Keep the private row continuous and carry the same normalized phase
 	** into the new ratio. This makes live Alt+Shift changes immediate without
 	** imposing a hidden phase reset. */
 	const int32_t newThreshold = getFastTracksPOCThreshold(channelIndex, song.speed);
 	if (oldThreshold > 0)
-		fastTracksPOCTickAccumulator[channelIndex] = (int32_t)(((int64_t)oldAccumulator * newThreshold) / oldThreshold);
+		state->tickAccumulator = (int32_t)(((int64_t)oldAccumulator * newThreshold) / oldThreshold);
 	else
-		fastTracksPOCTickAccumulator[channelIndex] = 0;
+		state->tickAccumulator = 0;
 
-	fastTracksPOCLastTPL[channelIndex] = song.speed > 0 ? song.speed : 1;
+	state->lastTPL = song.speed > 0 ? song.speed : 1;
 
 	if (audioWasntLocked)
 		unlockAudio();
@@ -277,26 +325,24 @@ void fastTracksPOCCycleRatio(int32_t channelIndex)
 
 void fastTracksPOCToggle(int32_t channelIndex)
 {
-	if (channelIndex < 0 || channelIndex >= FAST_TRACKS_MAX_CHANNELS)
+	volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
+	if (state == NULL)
 		return;
 
 	const bool audioWasntLocked = !audio.locked;
 	if (audioWasntLocked)
 		lockAudio();
 
-	if (!fastTracksPOCSelected[channelIndex])
+	if (!state->selected)
 	{
 		/* Publish a complete transport state before the audio thread can see
 		** this channel as selected. */
-		fastTracksPOCSourceRow[channelIndex] = song.row;
-		fastTracksPOCTickAccumulator[channelIndex] = 0;
-		fastTracksPOCLastTPL[channelIndex] = song.speed > 0 ? song.speed : 1;
-		fastTracksPOCTransportStarted[channelIndex] = false;
-		fastTracksPOCSelected[channelIndex] = true;
+		resetFastTracksPOCTransport(state, song.row);
+		state->selected = true;
 	}
 	else
 	{
-		fastTracksPOCSelected[channelIndex] = false;
+		state->selected = false;
 	}
 
 	if (audioWasntLocked)
@@ -313,12 +359,7 @@ void fastTracksPOCResetForLoadedModule(void)
 	** rows and phase offsets that belonged to the previous module.
 	*/
 	for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
-	{
-		fastTracksPOCSourceRow[i] = song.row;
-		fastTracksPOCTickAccumulator[i] = 0;
-		fastTracksPOCLastTPL[i] = song.speed > 0 ? song.speed : 1;
-		fastTracksPOCTransportStarted[i] = false;
-	}
+		resetFastTracksPOCTransport(&fastTracksPOCChannels[i], song.row);
 }
 
 void fastTracksPOCMasterToggle(void)
@@ -330,10 +371,7 @@ void fastTracksPOCMasterToggle(void)
 	const SDL_Keymod modifiers = SDL_GetModState();
 	if (modifiers & KMOD_SHIFT)
 	{
-		/*
-		** Shift-click: synchronize every selected Fast Track to its own
-		** shared transport. Selection and master state are preserved.
-		*/
+		/* Shift-click: synchronize every selected Fast Track to the master. */
 		const uint16_t masterTPL = song.speed > 0 ? song.speed : 1;
 		int32_t masterElapsedTicks = masterTPL - song.tick;
 		if (masterElapsedTicks < 0)
@@ -343,17 +381,11 @@ void fastTracksPOCMasterToggle(void)
 
 		for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
 		{
-			if (fastTracksPOCSelected[i])
+			volatile fastTracksChannelState_t *state = &fastTracksPOCChannels[i];
+			if (state->selected)
 			{
 				const fastTracksRatio_t *ratio = getFastTracksPOCRatio(i);
-
-				fastTracksPOCSourceRow[i] = song.row;
-				/* Match the master's current fractional position inside the row.
-				** The accumulator threshold is denominator * TPL, so the
-				** equivalent master phase is denominator * elapsed ticks. */
-				fastTracksPOCTickAccumulator[i] = ratio->denominator * masterElapsedTicks;
-				fastTracksPOCLastTPL[i] = masterTPL;
-				fastTracksPOCTransportStarted[i] = true;
+				syncFastTracksPOCTransportToMaster(state, ratio, masterTPL, masterElapsedTicks);
 			}
 		}
 
@@ -2835,7 +2867,7 @@ void tickReplayer(void) // periodically called from audio callback
 			** this same per-tick rational transport. */
 			if (advanceFastTracksPOCTransport(i, fastTracksTPL))
 			{
-				getNewNote(ch, getFastTracksPOCNote(i, fastTracksPOCSourceRow[i]));
+				getNewNote(ch, getFastTracksPOCNote(i, fastTracksPOCGetSourceRow(i)));
 				ui.updatePatternEditor = true;
 			}
 			else if (!tickZero)

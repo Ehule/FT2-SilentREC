@@ -846,10 +846,26 @@ static void drawFastTracksPOCStatus(uint16_t yPos)
 		const uint16_t panelWidth = (uint16_t)(ui.patternChannelWidth - 2);
 		fillRect((uint16_t)xPos, yPos, panelWidth, 8, PAL_DESKTOP);
 
-		// Reuse FT2's theme-controlled emphasized-row color for Fast Tracks.
-		charOutOutlined(xPos + 11, yPos, PAL_BLCKTXT, '0' + numerator);
-		charOutOutlined(xPos + 18, yPos, PAL_BLCKTXT, ':');
-		charOutOutlined(xPos + 21, yPos, PAL_BLCKTXT, '0' + denominator);
+		/*
+		** Use FT2's tiny font so two-digit ratios still fit before the phase
+		** scale. The old '0' + value conversion only worked for 0..9 and
+		** produced unrelated font glyphs for 15, 16 and 17.
+		*/
+		char numeratorText[4], denominatorText[4];
+		snprintf(numeratorText, sizeof (numeratorText), "%u", numerator);
+		snprintf(denominatorText, sizeof (denominatorText), "%u", denominator);
+
+		const int32_t numeratorDigits = numerator >= 10 ? 2 : 1;
+		const int32_t denominatorDigits = denominator >= 10 ? 2 : 1;
+		const int32_t ratioWidth = (numeratorDigits + 1 + denominatorDigits) * FONT3_CHAR_W;
+		const int32_t ratioX = xPos + 3 + ((29 - ratioWidth) / 2);
+		const int32_t colonX = ratioX + (numeratorDigits * FONT3_CHAR_W);
+		const uint32_t ratioColor = video.palette[PAL_BLCKTXT];
+
+		textOutTiny(ratioX, yPos + 1, numeratorText, ratioColor);
+		video.frameBuffer[((yPos + 3) * SCREEN_W) + colonX + 1] = ratioColor;
+		video.frameBuffer[((yPos + 5) * SCREEN_W) + colonX + 1] = ratioColor;
+		textOutTiny(colonX + FONT3_CHAR_W, yPos + 1, denominatorText, ratioColor);
 
 		/*
 		** Fifteen-position master-relative phase scale. The middle is zero:
