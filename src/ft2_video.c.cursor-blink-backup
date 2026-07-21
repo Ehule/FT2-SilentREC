@@ -1176,8 +1176,6 @@ bool setupRenderer(void)
 
 void handleRedrawing(void)
 {
-	updatePatternCursorBlink();
-
 	if (!ui.configScreenShown && !ui.helpScreenShown)
 	{
 		if (ui.aboutScreenShown)

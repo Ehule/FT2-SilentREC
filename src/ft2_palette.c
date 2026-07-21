@@ -45,6 +45,26 @@ void setPalette(pal16 *p, bool redrawScreen)
 	video.palette[PAL_TEXTMRK] = (PAL_TEXTMRK << 24) | TEXT_MARK_COLOR;
 	video.palette[PAL_BOXSLCT] = (PAL_BOXSLCT << 24) | BOX_SELECT_COLOR;
 
+	/*
+	** Dedicated pattern cursor colors. Use a darker pair on bright themes and
+	** a luminous pair on dark themes so the cursor remains obvious without
+	** replacing or recoloring the pattern text inside the cell.
+	*/
+	const uint32_t patternBg = video.palette[PAL_DESKTOP];
+	const uint32_t patternBgLuma = (RGB32_R(patternBg) * 54) +
+	                               (RGB32_G(patternBg) * 183) +
+	                               (RGB32_B(patternBg) * 19);
+	if (patternBgLuma >= (160 * 256))
+	{
+		video.palette[PAL_CURSOR_NAV] = (PAL_CURSOR_NAV << 24) | RGB32(0, 104, 176);
+		video.palette[PAL_CURSOR_EDIT] = (PAL_CURSOR_EDIT << 24) | RGB32(176, 104, 0);
+	}
+	else
+	{
+		video.palette[PAL_CURSOR_NAV] = (PAL_CURSOR_NAV << 24) | RGB32(40, 224, 255);
+		video.palette[PAL_CURSOR_EDIT] = (PAL_CURSOR_EDIT << 24) | RGB32(255, 224, 32);
+	}
+
 	r8 = RGB32_R(video.palette[PAL_PATTEXT]);
 	g8 = RGB32_G(video.palette[PAL_PATTEXT]);
 	b8 = RGB32_B(video.palette[PAL_PATTEXT]);

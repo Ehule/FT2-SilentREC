@@ -108,9 +108,6 @@ void keyDownHandler(SDL_Scancode scancode, SDL_Keycode keycode, bool keyWasRepea
 	if (keycode == SDLK_UNKNOWN)
 		return;
 
-	// Any keyboard interaction makes the pattern cursor immediately bright again.
-	resetPatternCursorBlink();
-
 	// revert "delete/rename" mouse modes (disk op.)
 	if (mouse.mode != MOUSE_MODE_NORMAL)
 		setMouseMode(MOUSE_MODE_NORMAL);

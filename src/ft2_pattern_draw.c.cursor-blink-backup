@@ -15,58 +15,6 @@
 #include "ft2_structs.h"
 #include "ft2_replayer.h"
 
-#define CURSOR_BREATHE_FRAMES 120
-
-static uint8_t cursorBreatheFrame;
-
-static uint8_t getCursorBreatheLevel(void)
-{
-	/*
-	** Two-second triangular breathing curve at 60Hz:
-	** 255 -> 140 -> 255. It never becomes faint enough to disappear.
-	*/
-	const uint16_t halfCycle = CURSOR_BREATHE_FRAMES / 2;
-	uint16_t distance = cursorBreatheFrame;
-	if (distance > halfCycle)
-		distance = CURSOR_BREATHE_FRAMES - distance;
-
-	return (uint8_t)(255 - ((distance * 115) / halfCycle));
-}
-
-static uint32_t breatheColorToward(uint32_t color, uint32_t background)
-{
-	const uint16_t level = getCursorBreatheLevel();
-	const uint16_t inverse = 255 - level;
-
-	const uint8_t r = (uint8_t)(((RGB32_R(color) * level) + (RGB32_R(background) * inverse)) / 255);
-	const uint8_t g = (uint8_t)(((RGB32_G(color) * level) + (RGB32_G(background) * inverse)) / 255);
-	const uint8_t b = (uint8_t)(((RGB32_B(color) * level) + (RGB32_B(background) * inverse)) / 255);
-	return RGB32(r, g, b);
-}
-
-void resetPatternCursorBlink(void)
-{
-	cursorBreatheFrame = 0;
-
-	if (ui.patternEditorShown)
-		ui.updatePatternEditor = true;
-}
-
-void updatePatternCursorBlink(void)
-{
-	if (!ui.patternEditorShown || ui.sysReqShown || ui.configScreenShown || ui.helpScreenShown)
-	{
-		cursorBreatheFrame = 0;
-		return;
-	}
-
-	cursorBreatheFrame++;
-	if (cursorBreatheFrame >= CURSOR_BREATHE_FRAMES)
-		cursorBreatheFrame = 0;
-
-	ui.updatePatternEditor = true;
-}
-
 static note_t emptyPattern[MAX_CHANNELS * MAX_PATT_LEN];
 
 static const uint8_t *font4Ptr, *font5Ptr;
@@ -248,8 +196,7 @@ static void writeCursor(void)
 	const bool editCursor = playMode == PLAYMODE_EDIT ||
 	                        playMode == PLAYMODE_RECPATT ||
 	                        playMode == PLAYMODE_RECSONG;
-	uint32_t cursorColor = video.palette[editCursor ? PAL_CURSOR_EDIT : PAL_CURSOR_NAV];
-	cursorColor = breatheColorToward(cursorColor, video.palette[PAL_DESKTOP]);
+	const uint32_t cursorColor = video.palette[editCursor ? PAL_CURSOR_EDIT : PAL_CURSOR_NAV];
 
 	uint32_t *topPtr = &video.frameBuffer[(editor.ptnCursorY * SCREEN_W) + xPos];
 	uint32_t *bottomPtr = topPtr + (8 * SCREEN_W);
@@ -883,7 +830,7 @@ static void drawFastTracksPOCStatus(uint16_t yPos)
 		}
 
 		const uint16_t markerX = (uint16_t)(scaleX + (phasePos * 2));
-		const uint32_t markerColor = breatheColorToward(0xFFFF0000, video.palette[PAL_DESKTOP]);
+		const uint32_t markerColor = 0xFFFF0000; // fixed bright red, independent of theme palette
 		if (fastTracksPOCIsMasterAligned(fastTrackChannel))
 		{
 			// Larger capital X for exact row alignment with the master transport.
