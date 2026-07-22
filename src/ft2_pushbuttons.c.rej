@@ -1,0 +1,11 @@
+--- src/ft2_pushbuttons.c	2026-07-22 05:21:49.441057963 +0000
++++ src/ft2_pushbuttons.c	2026-07-19 12:10:40.000000000 +0000
+@@ -90,7 +90,7 @@
+ 
+ 	// ------ MAIN SCREEN PUSHBUTTONS ------
+ 	//x,   y,   w,  h,  p, d, text #1,      text #2, funcOnDown, funcOnUp
+-	{ 294,   2, 59, 16, 0, 0, "About",      NULL,    NULL,       fastTracksPOCRandomizeSelectedRatios },
++	{ 294,   2, 59, 16, 0, 0, "About",      NULL,    NULL,       showAboutScreen },
+ 	{ 294,  19, 59, 16, 0, 0, "Nibbles",    NULL,    NULL,       pbNibbles },
+ 	{ 294,  36, 59, 16, 0, 0, "Zap",        NULL,    NULL,       pbZap },
+ 	{ 294,  53, 59, 16, 0, 0, "Trim",       NULL,    NULL,       toggleTrimScreen },

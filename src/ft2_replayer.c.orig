@@ -29,7 +29,6 @@
 #include "ft2_tables.h"
 #include "ft2_random.h"
 #include "ft2_structs.h"
-#include "ft2_random.h"
 #include "mixer/ft2_windowed_sinc.h"
 
 static uint32_t logTab[4*12*16], frequencyMulFactor, frequencyDivFactor;
@@ -440,62 +439,6 @@ void fastTracksPOCCycleRatio(int32_t channelIndex)
 	ui.updatePatternEditor = true;
 }
 
-void fastTracksPOCRandomizeSelectedRatios(bool syncToMaster)
-{
-	const bool audioWasntLocked = !audio.locked;
-	if (audioWasntLocked)
-		lockAudio();
-
-	const uint16_t masterTPL = song.speed > 0 ? song.speed : 1;
-	int32_t masterElapsedTicks = masterTPL - song.tick;
-	if (masterElapsedTicks < 0)
-		masterElapsedTicks = 0;
-	else if (masterElapsedTicks >= masterTPL)
-		masterElapsedTicks = masterTPL - 1;
-
-	for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
-	{
-		volatile fastTracksChannelState_t *state = &fastTracksPOCChannels[i];
-		if (!state->selected)
-			continue;
-
-		const int32_t oldRatioIndex = state->ratioIndex % FAST_TRACKS_RATIO_COUNT;
-		const int32_t oldThreshold = getFastTracksPOCThreshold(i, masterTPL);
-		const int32_t oldAccumulator = state->tickAccumulator;
-
-		/* Pick uniformly from every ratio except the current one. Duplicates
-		** between channels are intentionally allowed. */
-		int32_t newRatioIndex = randoml(FAST_TRACKS_RATIO_COUNT - 1);
-		if (newRatioIndex >= oldRatioIndex)
-			newRatioIndex++;
-
-		state->ratioIndex = (uint8_t)newRatioIndex;
-
-		if (syncToMaster)
-		{
-			const fastTracksRatio_t *ratio = getFastTracksPOCRatio(i);
-			syncFastTracksPOCTransportToMaster(state, ratio, masterTPL, masterElapsedTicks);
-		}
-		else
-		{
-			/* Dirty randomization preserves the private row and normalized
-			** sub-row phase while changing only its future transport rate. */
-			const int32_t newThreshold = getFastTracksPOCThreshold(i, masterTPL);
-			if (oldThreshold > 0)
-				state->tickAccumulator = (int32_t)(((int64_t)oldAccumulator * newThreshold) / oldThreshold);
-			else
-				state->tickAccumulator = 0;
-
-			state->lastTPL = masterTPL;
-		}
-	}
-
-	if (audioWasntLocked)
-		unlockAudio();
-
-	ui.updatePatternEditor = true;
-}
-
 void fastTracksPOCToggle(int32_t channelIndex)
 {
 	volatile fastTracksChannelState_t *state = getFastTracksPOCChannelState(channelIndex);
@@ -517,6 +460,60 @@ void fastTracksPOCToggle(int32_t channelIndex)
 	{
 		state->clutchHeld = false;
 		state->selected = false;
+	}
+
+	if (audioWasntLocked)
+		unlockAudio();
+
+	ui.updatePatternEditor = true;
+}
+
+void fastTracksPOCRandomizeSelectedRatios(void)
+{
+	const bool audioWasntLocked = !audio.locked;
+	if (audioWasntLocked)
+		lockAudio();
+
+	const bool syncToMaster = (SDL_GetModState() & KMOD_SHIFT) != 0;
+	const uint16_t masterTPL = song.speed > 0 ? song.speed : 1;
+	int32_t masterElapsedTicks = masterTPL - song.tick;
+	if (masterElapsedTicks < 0)
+		masterElapsedTicks = 0;
+	else if (masterElapsedTicks >= masterTPL)
+		masterElapsedTicks = masterTPL - 1;
+
+	for (int32_t i = 0; i < FAST_TRACKS_MAX_CHANNELS; i++)
+	{
+		volatile fastTracksChannelState_t *state = &fastTracksPOCChannels[i];
+		if (!state->selected)
+			continue;
+
+		const int32_t oldThreshold = getFastTracksPOCThreshold(i, masterTPL);
+		const int32_t oldAccumulator = state->tickAccumulator;
+
+		/* Select uniformly from every ratio except the current one. This
+		** guarantees an audible/state change per selected track while still
+		** allowing different tracks to land on duplicate ratios. */
+		const int32_t offset = 1 + randoml(FAST_TRACKS_RATIO_COUNT - 1);
+		state->ratioIndex = (uint8_t)((state->ratioIndex + offset) % FAST_TRACKS_RATIO_COUNT);
+
+		const fastTracksRatio_t *ratio = getFastTracksPOCRatio(i);
+		if (syncToMaster)
+		{
+			syncFastTracksPOCTransportToMaster(state, ratio, masterTPL, masterElapsedTicks);
+		}
+		else
+		{
+			/* Dirty randomization keeps the private source row and normalized
+			** sub-row phase continuous across the ratio change. */
+			const int32_t newThreshold = getFastTracksPOCThreshold(i, masterTPL);
+			if (oldThreshold > 0)
+				state->tickAccumulator = (int32_t)(((int64_t)oldAccumulator * newThreshold) / oldThreshold);
+			else
+				state->tickAccumulator = 0;
+
+			state->lastTPL = masterTPL;
+		}
 	}
 
 	if (audioWasntLocked)

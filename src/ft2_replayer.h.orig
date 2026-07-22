@@ -81,7 +81,7 @@ void fastTracksPOCClutchPress(int32_t channelIndex);
 void fastTracksPOCClutchRelease(int32_t channelIndex);
 void fastTracksPOCTransmissionClutchToggle(void);
 void fastTracksPOCCycleRatio(int32_t channelIndex);
-void fastTracksPOCRandomizeSelectedRatios(bool syncToMaster);
+void fastTracksPOCRandomizeSelectedRatios(void);
 void fastTracksPOCToggle(int32_t channelIndex);
 void fastTracksPOCResetForLoadedModule(void);
 void fastTracksPOCMasterToggle(void);

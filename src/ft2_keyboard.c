@@ -45,6 +45,33 @@ static const uint8_t scancodeKey2Note[52] = // keys (USB usage page standard) to
 static void handleKeys(SDL_Keycode keycode, SDL_Scancode scanKey);
 static bool checkModifiedKeys(SDL_Keycode keycode);
 
+static int32_t fastTracksChannelFromScancode(SDL_Scancode scancode)
+{
+	/* Physical keyboard rows map left-to-right onto XM channels 1..32:
+	** 1..0 = 1..10, Q..P = 11..20, A..L = 21..29, Z..C = 30..32. */
+	static const SDL_Scancode trackKeys[MAX_CHANNELS] =
+	{
+		SDL_SCANCODE_1, SDL_SCANCODE_2, SDL_SCANCODE_3, SDL_SCANCODE_4,
+		SDL_SCANCODE_5, SDL_SCANCODE_6, SDL_SCANCODE_7, SDL_SCANCODE_8,
+		SDL_SCANCODE_9, SDL_SCANCODE_0,
+		SDL_SCANCODE_Q, SDL_SCANCODE_W, SDL_SCANCODE_E, SDL_SCANCODE_R,
+		SDL_SCANCODE_T, SDL_SCANCODE_Y, SDL_SCANCODE_U, SDL_SCANCODE_I,
+		SDL_SCANCODE_O, SDL_SCANCODE_P,
+		SDL_SCANCODE_A, SDL_SCANCODE_S, SDL_SCANCODE_D, SDL_SCANCODE_F,
+		SDL_SCANCODE_G, SDL_SCANCODE_H, SDL_SCANCODE_J, SDL_SCANCODE_K,
+		SDL_SCANCODE_L,
+		SDL_SCANCODE_Z, SDL_SCANCODE_X, SDL_SCANCODE_C
+	};
+
+	for (int32_t i = 0; i < MAX_CHANNELS; i++)
+	{
+		if (trackKeys[i] == scancode)
+			return i;
+	}
+
+	return -1;
+}
+
 int8_t scancodeKeyToNote(SDL_Scancode scancode)
 {
 	if (scancode == SDL_SCANCODE_CAPSLOCK || scancode == SDL_SCANCODE_NONUSBACKSLASH)
@@ -103,10 +130,11 @@ void keyUpHandler(SDL_Scancode scancode, SDL_Keycode keycode)
 	if (scancode == SDL_SCANCODE_KP_PLUS)
 		keyb.numPadPlusPressed = false;
 
-	/* Tracks 1..8 remain momentary slip clutches. The global transmission
-	** clutch is latched on key-down, so releasing 0 intentionally does nothing. */
-	if (scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_8)
-		fastTracksPOCClutchRelease((int32_t)(scancode - SDL_SCANCODE_1));
+	/* All 32 mapped track keys can act as momentary slip clutches. The global
+	** transmission clutch is latched on key-down, so key release does nothing. */
+	const int32_t fastTrackChannel = fastTracksChannelFromScancode(scancode);
+	if (fastTrackChannel >= 0)
+		fastTracksPOCClutchRelease(fastTrackChannel);
 
 	keyb.keyRepeat = false;
 
@@ -171,10 +199,11 @@ void keyDownHandler(SDL_Scancode scancode, SDL_Keycode keycode, bool keyWasRepea
 	if (scancode == SDL_SCANCODE_KP_PLUS)
 		keyb.numPadPlusPressed = true;
 
-	/* Fast Tracks transmission clutch: Ctrl+Alt+0 toggles a latched global
-	** clutch. While latched, selected Fast Tracks are heard at master transport
-	** speed while their private ratio transports keep drifting underneath. */
-	if (keyb.leftCtrlPressed && keyb.leftAltPressed && scancode == SDL_SCANCODE_0 &&
+	/* Ctrl+Alt+Plus toggles the latched global transmission clutch. Accept
+	** both the main =/+ key and keypad plus so the command is practical across
+	** keyboards while remaining tied to the physical plus-key position. */
+	if (keyb.leftCtrlPressed && keyb.leftAltPressed &&
+		(scancode == SDL_SCANCODE_EQUALS || scancode == SDL_SCANCODE_KP_PLUS) &&
 		(fastTracksPOCAnyEnabled() || fastTracksPOCTransmissionClutchIsLatched()))
 	{
 		if (!keyWasRepeated)
@@ -183,36 +212,31 @@ void keyDownHandler(SDL_Scancode scancode, SDL_Keycode keycode, bool keyWasRepea
 		return;
 	}
 
-	/* Fast Tracks clutch: only claim Ctrl+Alt+1..8 when that numbered track is
-	** currently active in Fast Tracks. Otherwise preserve stock FT2 effect entry,
-	** including key repeat. While clutching, consume repeat events so they cannot
-	** fall through into the pattern editor. */
-	if (keyb.leftCtrlPressed && keyb.leftAltPressed &&
-		scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_8)
-	{
-		const int32_t clutchChannel = (int32_t)(scancode - SDL_SCANCODE_1);
-		if (fastTracksPOCIsEnabled(clutchChannel))
-		{
-			if (!keyWasRepeated)
-				fastTracksPOCClutchPress(clutchChannel);
+	const int32_t fastTrackChannel = fastTracksChannelFromScancode(scancode);
 
-			return;
-		}
-	}
-
-	// Fast Tracks: Alt+Shift+1..8 cycles that track's ratio.
-	if (!keyWasRepeated && keyb.leftAltPressed && keyb.leftShiftPressed &&
-		scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_8)
+	/* Ctrl+Alt+track key is a momentary clutch. Only claim the command when
+	** that track is currently active, preserving stock FT2 key behavior for
+	** inactive channels. */
+	if (keyb.leftCtrlPressed && keyb.leftAltPressed && fastTrackChannel >= 0 &&
+		fastTracksPOCIsEnabled(fastTrackChannel))
 	{
-		fastTracksPOCCycleRatio((int32_t)(scancode - SDL_SCANCODE_1));
+		if (!keyWasRepeated)
+			fastTracksPOCClutchPress(fastTrackChannel);
+
 		return;
 	}
 
-	// Fast Tracks: Ctrl+Shift+1..8 toggles the corresponding track.
-	if (!keyWasRepeated && keyb.leftCtrlPressed && keyb.leftShiftPressed &&
-		scancode >= SDL_SCANCODE_1 && scancode <= SDL_SCANCODE_8)
+	// Alt+Shift+track key cycles that track's Fast Tracks ratio.
+	if (!keyWasRepeated && keyb.leftAltPressed && keyb.leftShiftPressed && fastTrackChannel >= 0)
 	{
-		fastTracksPOCToggle((int32_t)(scancode - SDL_SCANCODE_1));
+		fastTracksPOCCycleRatio(fastTrackChannel);
+		return;
+	}
+
+	// Ctrl+Shift+track key toggles Fast Tracks for that channel.
+	if (!keyWasRepeated && keyb.leftCtrlPressed && keyb.leftShiftPressed && fastTrackChannel >= 0)
+	{
+		fastTracksPOCToggle(fastTrackChannel);
 		return;
 	}
 

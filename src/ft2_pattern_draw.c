@@ -822,9 +822,19 @@ static void showEfxNoVolColumn(uint32_t xPos, uint32_t yPos, uint8_t efx, uint8_
 	}
 }
 
+static void drawFastTracksPOCLed(uint16_t x, uint16_t y, uint32_t color)
+{
+	/* Compact 3x3 rounded LED: visible at every supported channel width. */
+	video.frameBuffer[( y      * SCREEN_W) + x + 1] = color;
+	video.frameBuffer[((y + 1) * SCREEN_W) + x    ] = color;
+	video.frameBuffer[((y + 1) * SCREEN_W) + x + 1] = color;
+	video.frameBuffer[((y + 1) * SCREEN_W) + x + 2] = color;
+	video.frameBuffer[((y + 2) * SCREEN_W) + x + 1] = color;
+}
+
 static void drawFastTracksPOCStatus(uint16_t yPos)
 {
-	for (int32_t fastTrackChannel = 0; fastTrackChannel < 8; fastTrackChannel++)
+	for (int32_t fastTrackChannel = 0; fastTrackChannel < MAX_CHANNELS; fastTrackChannel++)
 	{
 		if (!fastTracksPOCIsEnabled(fastTrackChannel))
 			continue;
@@ -840,19 +850,18 @@ static void drawFastTracksPOCStatus(uint16_t yPos)
 		const bool clutchHeld = fastTracksPOCIsClutched(fastTrackChannel);
 
 		/*
-		** Keep the Fast Tracks instrument panel readable while pattern data
-		** scrolls beneath it. This deliberately uses the normal desktop color
-		** so it remains compatible with every FT2 palette/theme.
+		** Fixed header zones keep one- and two-digit channel numbers from
+		** colliding with Fast Tracks status information:
+		**
+		**   [channel number]   [right-aligned ratio]   [lag sync lead]
+		**
+		** Channel numbering is redrawn after this panel, so its left-hand zone
+		** remains authoritative at every horizontal scroll position.
 		*/
 		const uint16_t panelWidth = (uint16_t)(ui.patternChannelWidth - 2);
 		const uint8_t panelColor = clutchHeld ? PAL_BLCKMRK : PAL_DESKTOP;
 		fillRect((uint16_t)xPos, yPos, panelWidth, 8, panelColor);
 
-		/*
-		** Use FT2's tiny font so two-digit ratios still fit before the phase
-		** scale. The old '0' + value conversion only worked for 0..9 and
-		** produced unrelated font glyphs for 15, 16 and 17.
-		*/
 		char numeratorText[4], denominatorText[4];
 		snprintf(numeratorText, sizeof (numeratorText), "%u", numerator);
 		snprintf(denominatorText, sizeof (denominatorText), "%u", denominator);
@@ -860,70 +869,81 @@ static void drawFastTracksPOCStatus(uint16_t yPos)
 		const int32_t numeratorDigits = numerator >= 10 ? 2 : 1;
 		const int32_t denominatorDigits = denominator >= 10 ? 2 : 1;
 		const int32_t ratioWidth = (numeratorDigits + 1 + denominatorDigits) * FONT3_CHAR_W;
-		const int32_t ratioX = xPos + 3 + ((29 - ratioWidth) / 2);
+
+		/* Keep the ratio around the middle of the channel header and place the
+		** three LEDs directly beside it. Treat ratio + gap + LEDs as one compact
+		** group, then clamp that group inside this channel's panel so no pixels
+		** can bleed into the neighboring track. */
+		const int32_t ledBankWidth = 11; /* three 3px LEDs with 1px gaps */
+		const int32_t ratioLedGap = 2;
+		const int32_t groupWidth = ratioWidth + ratioLedGap + ledBankWidth;
+		const int32_t panelLeft = (int32_t)xPos;
+		const int32_t panelRight = panelLeft + panelWidth - 1;
+
+		int32_t groupX = panelLeft + ((int32_t)panelWidth - groupWidth) / 2;
+		const int32_t minimumGroupX = panelLeft + 12; /* protect 1- or 2-digit track number */
+		if (groupX < minimumGroupX)
+			groupX = minimumGroupX;
+
+		const int32_t maximumGroupX = panelRight - groupWidth + 1;
+		if (groupX > maximumGroupX)
+			groupX = maximumGroupX;
+
+		const int32_t ratioX = groupX;
+		const uint16_t lagLedX = (uint16_t)(ratioX + ratioWidth + ratioLedGap);
+		const uint16_t syncLedX = (uint16_t)(lagLedX + 4);
+		const uint16_t leadLedX = (uint16_t)(syncLedX + 4);
+
 		const int32_t colonX = ratioX + (numeratorDigits * FONT3_CHAR_W);
 		const uint32_t ratioColor = video.palette[PAL_BLCKTXT];
-
 		textOutTiny(ratioX, yPos + 1, numeratorText, ratioColor);
 		video.frameBuffer[((yPos + 3) * SCREEN_W) + colonX + 1] = ratioColor;
 		video.frameBuffer[((yPos + 5) * SCREEN_W) + colonX + 1] = ratioColor;
 		textOutTiny(colonX + FONT3_CHAR_W, yPos + 1, denominatorText, ratioColor);
 
-		/*
-		** Fifteen-position master-relative phase scale. The middle is zero:
-		** the Fast Track source row matches the master row. Left is behind,
-		** right is ahead. Use the shortest wrapped row distance so crossing a
-		** pattern boundary does not reverse the apparent relationship.
-		*/
-		const int32_t numRows = song.currNumRows > 0 ? song.currNumRows : 1;
-		int32_t phaseOffset = sourceRow - song.row;
-		phaseOffset %= numRows;
-		if (phaseOffset < 0)
-			phaseOffset += numRows;
+		/* Draw all three housings so the indicator reads as a tiny LED bank even
+		** when only one lamp is active. */
+		const uint32_t ledOffColor = breatheColorToward(video.palette[PAL_BLCKTXT], video.palette[panelColor]);
+		drawFastTracksPOCLed(lagLedX,  (uint16_t)(yPos + 2), ledOffColor);
+		drawFastTracksPOCLed(syncLedX, (uint16_t)(yPos + 2), ledOffColor);
+		drawFastTracksPOCLed(leadLedX, (uint16_t)(yPos + 2), ledOffColor);
 
-		if (phaseOffset > numRows / 2)
-			phaseOffset -= numRows;
-
-		const uint16_t scaleX = (uint16_t)(xPos + 31);
-		const uint16_t scaleY = (uint16_t)(yPos + 4);
-		for (int32_t i = 0; i < 15; i++)
-			video.frameBuffer[(scaleY * SCREEN_W) + scaleX + (i * 2)] = video.palette[PAL_BLCKTXT];
-
-		int32_t phasePos = 7;
-		if (numRows > 1)
+		const bool masterAligned = fastTracksPOCIsMasterAligned(fastTrackChannel);
+		if (masterAligned)
 		{
-			const int32_t halfRows = numRows / 2;
-			phasePos += (phaseOffset * 7) / (halfRows > 0 ? halfRows : 1);
-			if (phasePos < 0)
-				phasePos = 0;
-			else if (phasePos > 14)
-				phasePos = 14;
-		}
-
-		const uint16_t markerX = (uint16_t)(scaleX + (phasePos * 2));
-		/* Reuse FT2's configurable block-mark color for the temporary clutch
-		** state; red retains its normal phase meaning after release. */
-		const uint32_t markerBaseColor = clutchHeld ? video.palette[PAL_BLCKMRK] : 0xFFFF0000;
-		const uint32_t markerColor = breatheColorToward(markerBaseColor, video.palette[panelColor]);
-		if (fastTracksPOCIsMasterAligned(fastTrackChannel))
-		{
-			// Larger capital X for exact row alignment with the master transport.
-			video.frameBuffer[((yPos + 1) * SCREEN_W) + markerX - 2] = markerColor;
-			video.frameBuffer[((yPos + 1) * SCREEN_W) + markerX + 2] = markerColor;
-			video.frameBuffer[((yPos + 2) * SCREEN_W) + markerX - 1] = markerColor;
-			video.frameBuffer[((yPos + 2) * SCREEN_W) + markerX + 1] = markerColor;
-			video.frameBuffer[((yPos + 3) * SCREEN_W) + markerX] = markerColor;
-			video.frameBuffer[((yPos + 4) * SCREEN_W) + markerX - 1] = markerColor;
-			video.frameBuffer[((yPos + 4) * SCREEN_W) + markerX + 1] = markerColor;
-			video.frameBuffer[((yPos + 5) * SCREEN_W) + markerX - 2] = markerColor;
-			video.frameBuffer[((yPos + 5) * SCREEN_W) + markerX + 2] = markerColor;
+			/* Deliberately literal green: exact master synchronization should be
+			** recognizable independently of the current FT2 palette. */
+			const uint32_t syncColor = breatheColorToward(0xFF00D040, video.palette[panelColor]);
+			drawFastTracksPOCLed(syncLedX, (uint16_t)(yPos + 2), syncColor);
 		}
 		else
 		{
-			for (int32_t dotY = 2; dotY < 5; dotY++)
+			const int32_t numRows = song.currNumRows > 0 ? song.currNumRows : 1;
+			int32_t phaseOffset = sourceRow - song.row;
+			phaseOffset %= numRows;
+			if (phaseOffset < 0)
+				phaseOffset += numRows;
+			if (phaseOffset > numRows / 2)
+				phaseOffset -= numRows;
+
+			/* Red retains the established Fast Tracks phase meaning. During clutch,
+			** the configurable block-mark color remains the temporary emphasis. */
+			const uint32_t phaseBaseColor = clutchHeld ? video.palette[PAL_BLCKMRK] : 0xFFFF3030;
+			const uint32_t phaseColor = breatheColorToward(phaseBaseColor, video.palette[panelColor]);
+			if (phaseOffset < 0)
 			{
-				video.frameBuffer[((yPos + dotY) * SCREEN_W) + markerX] = markerColor;
-				video.frameBuffer[((yPos + dotY) * SCREEN_W) + markerX + 1] = markerColor;
+				drawFastTracksPOCLed(lagLedX, (uint16_t)(yPos + 2), phaseColor);
+			}
+			else if (phaseOffset > 0)
+			{
+				drawFastTracksPOCLed(leadLedX, (uint16_t)(yPos + 2), phaseColor);
+			}
+			else
+			{
+				/* Same displayed row but not truly transport-aligned: illuminate both
+				** sides instead of falsely claiming a direction or exact sync. */
+				drawFastTracksPOCLed(lagLedX,  (uint16_t)(yPos + 2), phaseColor);
+				drawFastTracksPOCLed(leadLedX, (uint16_t)(yPos + 2), phaseColor);
 			}
 		}
 	}
@@ -1018,8 +1038,8 @@ void writePattern(int32_t currRow, int32_t currPattern)
 			const int32_t xWidth = ui.patternChannelWidth;
 			const uint32_t color = noteTextColors[selectedRowFlag];
 
-			// FT-005: every enabled channel among Tracks 1..8 is rendered as its own
-			// private scrolling tape window, centered on that channel's 2X source row.
+			// Every enabled Fast Track is rendered as its own private scrolling tape
+			// window, centered on that channel's current ratio-driven source row.
 			int32_t xPos = 29;
 			for (int32_t j = 0; j < numChannels; j++, p++, xPos += xWidth)
 			{
