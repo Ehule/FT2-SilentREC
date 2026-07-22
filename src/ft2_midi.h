@@ -32,6 +32,7 @@ bool openMidiInDevice(uint32_t deviceID);
 void recordMIDIEffect(uint8_t efx, uint8_t efxData);
 void midiDubNoteOn(uint8_t channelIndex, uint8_t note, uint8_t velocity);
 void midiDubNoteOff(uint8_t channelIndex);
+void midiDubTick(void);
 void midiDubPanic(void);
 bool saveMidiInputDeviceToConfig(void);
 bool setMidiInputDeviceFromConfig(void);

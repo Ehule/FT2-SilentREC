@@ -3016,6 +3016,10 @@ void resumeMusic(void) // starts reading pattern data
 
 void tickReplayer(void) // periodically called from audio callback
 {
+#ifdef HAS_MIDI
+	midiDubTick();
+#endif
+
 	channel_t *ch;
 
 	if (!songPlaying)

@@ -36,6 +36,11 @@ static bool midiOutVirtualAvailable;
 static bool midiOutUsingVirtual;
 static uint8_t midiDubActiveNote[MAX_CHANNELS];
 
+/* MIDI_DUB_DAW_GATE: tracker notes are attacks, not indefinitely held keys.
+** End each emitted MIDI note on the following replay tick so DAWs record
+** repeated pitches as separate piano-roll notes instead of one drone. */
+static uint8_t midiDubGateTicks[MAX_CHANNELS];
+
 
 static bool initMidiOut(void)
 {
@@ -116,6 +121,7 @@ void midiDubNoteOff(uint8_t channelIndex)
 	const uint8_t midiChannel = channelIndex & 15;
 	midiDubSend3(0x80 | midiChannel, activeNote, 0);
 	midiDubActiveNote[channelIndex] = 0;
+	midiDubGateTicks[channelIndex] = 0;
 }
 
 void midiDubNoteOn(uint8_t channelIndex, uint8_t note, uint8_t velocity)
@@ -134,6 +140,22 @@ void midiDubNoteOn(uint8_t channelIndex, uint8_t note, uint8_t velocity)
 
 	midiDubSend3(0x90 | midiChannel, midiNote, velocity & 0x7F);
 	midiDubActiveNote[channelIndex] = midiNote;
+	midiDubGateTicks[channelIndex] = 1;
+}
+
+void midiDubTick(void)
+{
+	if (!midi.dubEnable)
+		return;
+
+	for (uint8_t i = 0; i < MAX_CHANNELS; i++)
+	{
+		if (midiDubGateTicks[i] == 0)
+			continue;
+
+		if (--midiDubGateTicks[i] == 0)
+			midiDubNoteOff(i);
+	}
 }
 
 void midiDubPanic(void)
