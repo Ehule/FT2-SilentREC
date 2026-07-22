@@ -104,8 +104,7 @@ scrollBar_t scrollBars[NUM_SCROLLBARS] =
 #ifdef HAS_MIDI
 	// ------ CONFIG MIDI SCROLLBARS ------
 	//x,   y,  w,  h,   type,               style                         funcOnDown
-	{ 483, 28, 18, 44, SCROLLBAR_VERTICAL, SCROLLBAR_DYNAMIC_THUMB_SIZE, sbMidiInputSetPos },
-	{ 483,115, 18, 43, SCROLLBAR_VERTICAL, SCROLLBAR_DYNAMIC_THUMB_SIZE, sbMidiOutputSetPos },
+	{ 483, 15, 18, 143, SCROLLBAR_VERTICAL, SCROLLBAR_DYNAMIC_THUMB_SIZE, sbMidiInputSetPos },
 #endif
 
 	// ------ DISK OP. SCROLLBARS ------
@@ -704,10 +703,8 @@ void initializeScrollBars(void)
 	setScrollBarEnd(SB_AUDIO_INPUT_SCROLL, 1);
 
 #ifdef HAS_MIDI
-	setScrollBarPageLength(SB_MIDI_INPUT_SCROLL, 6);
+	setScrollBarPageLength(SB_MIDI_INPUT_SCROLL, 15);
 	setScrollBarEnd(SB_MIDI_INPUT_SCROLL, 1);
-	setScrollBarPageLength(SB_MIDI_OUTPUT_SCROLL, 6);
-	setScrollBarEnd(SB_MIDI_OUTPUT_SCROLL, 1);
 #endif
 
 	// disk op.

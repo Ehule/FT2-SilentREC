@@ -12,12 +12,10 @@
 typedef struct midi_t
 {
 	char *inputDeviceName, *inputDeviceNames[MAX_MIDI_DEVICES];
-	char *outputDeviceName, *outputDeviceNames[MAX_MIDI_DEVICES];
 	volatile bool initThreadDone, callbackBusy, enable;
 	bool dubEnable;
 	bool rescanDevicesFlag;
 	uint32_t inputDevice, numInputDevices;
-	uint32_t outputDevice, numOutputDevices;
 	int16_t currMIDIVibDepth, currMIDIPitch;
 	SDL_Thread *initMidiThread;
 } midi_t;
@@ -36,13 +34,6 @@ void midiDubPanic(void);
 bool saveMidiInputDeviceToConfig(void);
 bool setMidiInputDeviceFromConfig(void);
 void freeMidiInputDeviceList(void);
-void freeMidiOutputDeviceList(void);
-void rescanMidiOutputDevices(void);
-void drawMidiOutputList(void);
-void scrollMidiOutputDevListUp(void);
-void scrollMidiOutputDevListDown(void);
-void sbMidiOutputSetPos(uint32_t pos);
-bool testMidiOutputDeviceListMouseDown(void);
 void rescanMidiInputDevices(void);
 void drawMidiInputList(void);
 void scrollMidiInputDevListUp(void);

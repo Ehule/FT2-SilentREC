@@ -534,10 +534,7 @@ void mouseWheelHandler(bool directionUp)
 			{
 				// midi input device selector
 				if (mouse.x >= 110 && mouse.x <= 503 && mouse.y <= 173)
-				{
-					if (mouse.y < 87) directionUp ? scrollMidiInputDevListUp() : scrollMidiInputDevListDown();
-					else directionUp ? scrollMidiOutputDevListUp() : scrollMidiOutputDevListDown();
-				}
+					directionUp ? scrollMidiInputDevListUp() : scrollMidiInputDevListDown();
 			}
 #endif
 		}
@@ -781,7 +778,6 @@ void mouseButtonDownHandler(uint8_t mouseButton)
 
 #ifdef HAS_MIDI
 	if (testMidiInputDeviceListMouseDown()) return;
-	if (testMidiOutputDeviceListMouseDown()) return;
 #endif
 }
 

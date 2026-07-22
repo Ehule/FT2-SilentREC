@@ -48,7 +48,6 @@ enum // SCROLLBARS
 #ifdef HAS_MIDI
 	// Config MIDI input
 	SB_MIDI_INPUT_SCROLL,
-	SB_MIDI_OUTPUT_SCROLL,
 #endif
 
 	// Disk Op.

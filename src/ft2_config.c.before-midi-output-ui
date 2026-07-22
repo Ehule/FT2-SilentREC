@@ -1132,7 +1132,7 @@ void showConfigScreen(void)
 	textOutShadow(21, 35, PAL_FORGRND, PAL_DSKTOP2, "Layout");
 	textOutShadow(21, 51, PAL_FORGRND, PAL_DSKTOP2, "Miscellaneous");
 #ifdef HAS_MIDI
-	textOutShadow(21, 67, PAL_FORGRND, PAL_DSKTOP2, "MIDI");
+	textOutShadow(21, 67, PAL_FORGRND, PAL_DSKTOP2, "MIDI input");
 #endif
 	textOutShadow(20, 93, PAL_FORGRND, PAL_DSKTOP2, "Auto save");
 
@@ -1411,14 +1411,11 @@ void showConfigScreen(void)
 		case CONFIG_SCREEN_MIDI_INPUT:
 		{
 			drawFramework(110, 0, 394, 173, FRAMEWORK_TYPE1);
-			drawFramework(112, 15, 369, 70, FRAMEWORK_TYPE2);
-			drawFramework(112,102, 369, 69, FRAMEWORK_TYPE2);
+			drawFramework(112, 2, 369, 169, FRAMEWORK_TYPE2);
 			drawFramework(504, 0, 128, 173, FRAMEWORK_TYPE1);
 
-			textOutShadow(114,   4, PAL_FORGRND, PAL_DSKTOP2, "MIDI input devices:");
-			textOutShadow(114,  91, PAL_FORGRND, PAL_DSKTOP2, "MIDI output devices:");
-			textOutShadow(528, 112, PAL_FORGRND, PAL_DSKTOP2, "MIDI Devices");
-			textOutShadow(528, 131, PAL_FORGRND, PAL_DSKTOP2, "MIDI Panic");
+			textOutShadow(528, 112, PAL_FORGRND, PAL_DSKTOP2, "Input Devices");
+			textOutShadow(528, 131, PAL_FORGRND, PAL_DSKTOP2, "MIDI Dub output");
 
 			blitFast(517, 51, bmp.midiLogo, 103, 55);
 			checkBoxes[CB_CONF_MIDI_DUB_ENABLE].checked = midi.dubEnable;
@@ -1426,14 +1423,9 @@ void showConfigScreen(void)
 
 			showPushButton(PB_CONFIG_MIDI_INPUT_DOWN);
 			showPushButton(PB_CONFIG_MIDI_INPUT_UP);
-			showPushButton(PB_CONFIG_MIDI_OUTPUT_DOWN);
-			showPushButton(PB_CONFIG_MIDI_OUTPUT_UP);
 			rescanMidiInputDevices();
-			rescanMidiOutputDevices();
 			drawMidiInputList();
-			drawMidiOutputList();
 			showScrollBar(SB_MIDI_INPUT_SCROLL);
-			showScrollBar(SB_MIDI_OUTPUT_SCROLL);
 		}
 		break;
 #endif
@@ -1551,10 +1543,7 @@ void hideConfigScreen(void)
 	// CONFIG MIDI
 	hidePushButton(PB_CONFIG_MIDI_INPUT_DOWN);
 	hidePushButton(PB_CONFIG_MIDI_INPUT_UP);
-	hidePushButton(PB_CONFIG_MIDI_OUTPUT_DOWN);
-	hidePushButton(PB_CONFIG_MIDI_OUTPUT_UP);
 	hideScrollBar(SB_MIDI_INPUT_SCROLL);
-	hideScrollBar(SB_MIDI_OUTPUT_SCROLL);
 #endif
 
 	ui.configScreenShown = false;

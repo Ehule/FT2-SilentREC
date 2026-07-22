@@ -1129,24 +1129,6 @@ int32_t getPianoKey(int32_t period, int8_t finetune, int8_t relativeNote)
 	}
 }
 
-#ifdef HAS_MIDI
-static uint8_t midiDubVelocityFromNoteVolume(const channel_t *ch, uint8_t efx, uint8_t efxData)
-{
-	uint8_t volume = ch->oldVol; // sample default volume (0..64)
-
-	// A direct volume-column value takes effect on the note's first tick.
-	if (ch->volColumnVol >= 0x10 && ch->volColumnVol <= 0x50)
-		volume = ch->volColumnVol - 0x10;
-
-	// Cxx also sets the note volume on tick zero.
-	if (efx == 0x0C)
-		volume = efxData > 64 ? 64 : efxData;
-
-	// MIDI velocity zero means Note Off, so map FT2 volume 0..64 to 1..127.
-	return (uint8_t)(1 + ((volume * 126u + 32u) / 64u));
-}
-#endif
-
 void triggerNote(uint8_t note, uint8_t efx, uint8_t efxData, channel_t *ch)
 {
 	if (note == NOTE_OFF)
@@ -1164,6 +1146,11 @@ void triggerNote(uint8_t note, uint8_t efx, uint8_t efxData, channel_t *ch)
 	}
 
 	ch->noteNum = note;
+
+#ifdef HAS_MIDI
+	if (ch >= channel && ch < channel + MAX_CHANNELS)
+		midiDubNoteOn((uint8_t)(ch - channel), note, 100);
+#endif
 
 	ASSERT(ch->instrNum <= 130);
 	instr_t *ins = instr[ch->instrNum];
@@ -1188,13 +1175,6 @@ void triggerNote(uint8_t note, uint8_t efx, uint8_t efxData, channel_t *ch)
 
 	ch->oldVol = s->volume;
 	ch->oldPan = s->panning;
-
-
-#ifdef HAS_MIDI
-	if (ch >= channel && ch < channel + MAX_CHANNELS)
-		midiDubNoteOn((uint8_t)(ch - channel), ch->noteNum,
-		    midiDubVelocityFromNoteVolume(ch, efx, efxData));
-#endif
 
 	if (efx == 0xE && (efxData & 0xF0) == 0x50) // E5x (Set Finetune)
 		ch->finetune = ((efxData & 0x0F) * 16) - 128;

@@ -79,10 +79,7 @@ void handleEvents(void)
 
 		rescanMidiInputDevices();
 		if (ui.configScreenShown && editor.currConfigScreen == CONFIG_SCREEN_MIDI_INPUT)
-		{
 			drawMidiInputList();
-			drawMidiOutputList();
-		}
 	}
 #endif
 

@@ -32,8 +32,6 @@ static bool recMIDIValidChn = true;
 static volatile RtMidiPtr midiInDev;
 static volatile RtMidiOutPtr midiOutDev;
 static bool midiOutPortOpened;
-static bool midiOutVirtualAvailable;
-static bool midiOutUsingVirtual;
 static uint8_t midiDubActiveNote[MAX_CHANNELS];
 
 
@@ -42,37 +40,28 @@ static bool initMidiOut(void)
 	midiOutDev = rtmidi_out_create_default();
 	if (midiOutDev == NULL || !midiOutDev->ok)
 	{
-		if (midiOutDev != NULL) rtmidi_out_free(midiOutDev);
+		if (midiOutDev != NULL)
+			rtmidi_out_free(midiOutDev);
+
 		midiOutDev = NULL;
 		return false;
 	}
 
-	/* Linux/macOS can expose a native virtual source. Windows normally
-	** cannot, but the same RtMidi object can still enumerate and open
-	** loopMIDI, hardware, and other destination ports. */
+	/* A virtual port is ideal for dubbing directly into SunVox, a DAW,
+	** or another sequencer. Platforms without virtual-port support simply
+	** leave MIDI Dub unavailable until device selection is added. */
 	rtmidi_open_virtual_port(midiOutDev, "FT2 Tapehead MIDI Dub");
-	if (midiOutDev->ok)
+	if (!midiOutDev->ok)
 	{
-		midiOutPortOpened = true;
-		midiOutVirtualAvailable = true;
-		midiOutUsingVirtual = true;
-		midi.outputDevice = 0;
-		midi.outputDeviceName = strdup("FT2 Tapehead MIDI Dub (virtual)");
-	}
-	else
-	{
-		/* Recreate after a failed virtual-port attempt so output enumeration
-		** remains usable on WinMM. */
 		rtmidi_out_free(midiOutDev);
-		midiOutDev = rtmidi_out_create_default();
-		midiOutPortOpened = false;
-		midiOutVirtualAvailable = false;
-		midiOutUsingVirtual = false;
+		midiOutDev = NULL;
+		return false;
 	}
 
+	midiOutPortOpened = true;
 	midi.dubEnable = true;
 	memset(midiDubActiveNote, 0, sizeof (midiDubActiveNote));
-	return midiOutDev != NULL && midiOutDev->ok;
+	return true;
 }
 
 void freeMidiOut(void)
@@ -85,8 +74,6 @@ void freeMidiOut(void)
 	}
 
 	midiOutPortOpened = false;
-	midiOutVirtualAvailable = false;
-	midiOutUsingVirtual = false;
 }
 
 static void midiDubSend3Raw(uint8_t status, uint8_t data1, uint8_t data2)
@@ -503,118 +490,6 @@ setDefMidiInputDev:
 	return false;
 }
 
-
-static uint32_t getNumMidiOutDevices(void)
-{
-	return midiOutDev == NULL ? 0 : rtmidi_get_port_count(midiOutDev);
-}
-
-static char *getMidiOutDeviceName(uint32_t deviceID)
-{
-	if (midiOutDev == NULL) return NULL;
-	int32_t len = 0;
-	rtmidi_get_port_name(midiOutDev, deviceID, NULL, &len);
-	if (!midiOutDev->ok || len <= 0) return NULL;
-	char *name = (char *)malloc(len + 1);
-	if (name == NULL) return NULL;
-	rtmidi_get_port_name(midiOutDev, deviceID, name, &len);
-	if (!midiOutDev->ok) { free(name); return NULL; }
-	return name;
-}
-
-void freeMidiOutputDeviceList(void)
-{
-	for (int32_t i = 0; i < MAX_MIDI_DEVICES; i++)
-	{
-		free(midi.outputDeviceNames[i]);
-		midi.outputDeviceNames[i] = NULL;
-	}
-	midi.numOutputDevices = 0;
-}
-
-void rescanMidiOutputDevices(void)
-{
-	freeMidiOutputDeviceList();
-
-	/* A virtual MIDI source is not returned by RtMidi's destination-port
-	** enumeration, so expose it as an explicit synthetic first item. */
-	if (midiOutVirtualAvailable && midi.numOutputDevices < MAX_MIDI_DEVICES)
-		midi.outputDeviceNames[midi.numOutputDevices++] = strdup("FT2 Tapehead MIDI Dub (virtual)");
-
-	const uint32_t room = MAX_MIDI_DEVICES - midi.numOutputDevices;
-	const uint32_t count = MIN(getNumMidiOutDevices(), room);
-	for (uint32_t i = 0; i < count; i++)
-	{
-		char *name = getMidiOutDeviceName(i);
-		if (name != NULL) midi.outputDeviceNames[midi.numOutputDevices++] = name;
-	}
-	setScrollBarEnd(SB_MIDI_OUTPUT_SCROLL, midi.numOutputDevices);
-	setScrollBarPos(SB_MIDI_OUTPUT_SCROLL, 0, DONT_TRIGGER_CALLBACK);
-}
-
-void drawMidiOutputList(void)
-{
-	clearRect(114, 105, 365, 62);
-	if (!midi.initThreadDone || midiOutDev == NULL || midi.numOutputDevices == 0)
-	{
-		textOut(114, 105, PAL_FORGRND, "No MIDI output devices found.");
-		textOut(114, 116, PAL_FORGRND, "On Windows, create a loopMIDI port first.");
-		return;
-	}
-	for (uint16_t i = 0; i < 6; i++)
-	{
-		uint32_t n = getScrollBarPos(SB_MIDI_OUTPUT_SCROLL) + i;
-		if (n >= midi.numOutputDevices || midi.outputDeviceNames[n] == NULL) continue;
-		const uint16_t y = 105 + i * 11;
-		if (midi.outputDeviceName != NULL && !_stricmp(midi.outputDeviceName, midi.outputDeviceNames[n]))
-			fillRect(114, y, 365, 10, PAL_BOXSLCT);
-		char *tmp = utf8ToCp850(midi.outputDeviceNames[n], true);
-		if (tmp != NULL) { textOutClipX(114, y, PAL_FORGRND, tmp, 479); free(tmp); }
-	}
-}
-
-void scrollMidiOutputDevListUp(void) { scrollBarScrollUp(SB_MIDI_OUTPUT_SCROLL, 1); }
-void scrollMidiOutputDevListDown(void) { scrollBarScrollDown(SB_MIDI_OUTPUT_SCROLL, 1); }
-void sbMidiOutputSetPos(uint32_t pos)
-{
-	if (ui.configScreenShown && editor.currConfigScreen == CONFIG_SCREEN_MIDI_INPUT) drawMidiOutputList();
-	(void)pos;
-}
-
-bool testMidiOutputDeviceListMouseDown(void)
-{
-	if (!ui.configScreenShown || editor.currConfigScreen != CONFIG_SCREEN_MIDI_INPUT) return false;
-	if (mouse.x < 114 || mouse.x > 479 || mouse.y < 105 || mouse.y > 166) return false;
-	if (!midi.initThreadDone || midiOutDev == NULL) return true;
-	uint32_t n = getScrollBarPos(SB_MIDI_OUTPUT_SCROLL) + ((mouse.y - 105) / 11);
-	if (n >= midi.numOutputDevices || midi.outputDeviceNames[n] == NULL) return true;
-
-	midiDubPanic();
-	if (midiOutPortOpened) rtmidi_close_port(midiOutDev);
-	midiOutPortOpened = false;
-	midiOutUsingVirtual = false;
-
-	const bool selectVirtual = midiOutVirtualAvailable && n == 0;
-	if (selectVirtual)
-		rtmidi_open_virtual_port(midiOutDev, "FT2 Tapehead MIDI Dub");
-	else
-	{
-		const uint32_t realPort = n - (midiOutVirtualAvailable ? 1 : 0);
-		rtmidi_open_port(midiOutDev, realPort, "FT2 Tapehead MIDI Dub");
-	}
-
-	if (midiOutDev->ok)
-	{
-		midiOutPortOpened = true;
-		midiOutUsingVirtual = selectVirtual;
-		free(midi.outputDeviceName);
-		midi.outputDeviceName = strdup(midi.outputDeviceNames[n]);
-		midi.outputDevice = n;
-	}
-	drawMidiOutputList();
-	return true;
-}
-
 void freeMidiInputDeviceList(void)
 {
 	for (int32_t i = 0; i < MAX_MIDI_DEVICES; i++)
@@ -659,17 +534,17 @@ void rescanMidiInputDevices(void)
 
 void drawMidiInputList(void)
 {
-	clearRect(114, 17, 365, 66);
+	clearRect(114, 4, 365, 165);
 
 	if (!midi.initThreadDone || midiInDev == NULL || midi.numInputDevices == 0)
 	{
-		textOut(114, 17 + (0 * 11), PAL_FORGRND, "No MIDI input devices found!");
-		textOut(114, 17 + (1 * 11), PAL_FORGRND, "Either wait a few seconds for MIDI to initialize, or restart the");
-		textOut(114, 17 + (2 * 11), PAL_FORGRND, "tracker if you recently plugged in a MIDI device.");
+		textOut(114, 4 + (0 * 11), PAL_FORGRND, "No MIDI input devices found!");
+		textOut(114, 4 + (1 * 11), PAL_FORGRND, "Either wait a few seconds for MIDI to initialize, or restart the");
+		textOut(114, 4 + (2 * 11), PAL_FORGRND, "tracker if you recently plugged in a MIDI device.");
 		return;
 	}
 
-	for (uint16_t i = 0; i < 6; i++)
+	for (uint16_t i = 0; i < 15; i++)
 	{
 		uint32_t deviceEntry = getScrollBarPos(SB_MIDI_INPUT_SCROLL) + i;
 		if (deviceEntry > MAX_MIDI_DEVICES)
@@ -680,7 +555,7 @@ void drawMidiInputList(void)
 			if (midi.inputDeviceNames[deviceEntry] == NULL)
 				continue;
 
-			const uint16_t y = 17 + (i * 11);
+			const uint16_t y = 4 + (i * 11);
 
 			if (midi.inputDeviceName != NULL)
 			{
@@ -721,13 +596,13 @@ bool testMidiInputDeviceListMouseDown(void)
 	if (!ui.configScreenShown || editor.currConfigScreen != CONFIG_SCREEN_MIDI_INPUT)
 		return false;
 
-	if (mouse.x < 114 || mouse.x > 479 || mouse.y < 17 || mouse.y > 82)
+	if (mouse.x < 114 || mouse.x > 479 || mouse.y < 4 || mouse.y > 166)
 		return false; // we didn't click inside the list area
 
 	if (!midi.initThreadDone)
 		return true;
 
-	uint32_t deviceNum = (uint32_t)scrollBars[SB_MIDI_INPUT_SCROLL].pos + ((mouse.y - 17) / 11);
+	uint32_t deviceNum = (uint32_t)scrollBars[SB_MIDI_INPUT_SCROLL].pos + ((mouse.y - 4) / 11);
 	if (deviceNum > MAX_MIDI_DEVICES)
 		deviceNum = MAX_MIDI_DEVICES;
 
@@ -765,7 +640,6 @@ int32_t initMidiFunc(void *ptr)
 {
 	initMidiIn();
 	initMidiOut();
-	rescanMidiOutputDevices();
 	setMidiInputDeviceFromConfig();
 	openMidiInDevice(midi.inputDevice);
 	midi.rescanDevicesFlag = true;
