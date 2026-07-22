@@ -1031,8 +1031,10 @@ static void setConfigMiscCheckButtonStates(void)
 	checkBoxes[CB_CONF_ORIG_FT2_PATT_LAYOUT].checked = !config.ptnAlternativeLayout;
 #ifdef HAS_MIDI
 	checkBoxes[CB_CONF_MIDI_ENABLE].checked = midi.enable;
+	checkBoxes[CB_CONF_MIDI_DUB_ENABLE].checked = midi.dubEnable;
 #else
 	checkBoxes[CB_CONF_MIDI_ENABLE].checked = false;
+	checkBoxes[CB_CONF_MIDI_DUB_ENABLE].checked = false;
 #endif
 	checkBoxes[CB_CONF_MIDI_REC_ALL].checked = config.recMIDIAllChn;
 	checkBoxes[CB_CONF_MIDI_REC_TRANS].checked = config.recMIDITransp;
@@ -1413,8 +1415,11 @@ void showConfigScreen(void)
 			drawFramework(504, 0, 128, 173, FRAMEWORK_TYPE1);
 
 			textOutShadow(528, 112, PAL_FORGRND, PAL_DSKTOP2, "Input Devices");
+			textOutShadow(528, 131, PAL_FORGRND, PAL_DSKTOP2, "MIDI Dub output");
 
 			blitFast(517, 51, bmp.midiLogo, 103, 55);
+			checkBoxes[CB_CONF_MIDI_DUB_ENABLE].checked = midi.dubEnable;
+			showCheckBox(CB_CONF_MIDI_DUB_ENABLE);
 
 			showPushButton(PB_CONFIG_MIDI_INPUT_DOWN);
 			showPushButton(PB_CONFIG_MIDI_INPUT_UP);
@@ -1522,6 +1527,7 @@ void hideConfigScreen(void)
 	hideCheckBox(CB_CONF_CHANGE_PATTLEN_INS_DEL);
 	hideCheckBox(CB_CONF_ORIG_FT2_PATT_LAYOUT);
 	hideCheckBox(CB_CONF_MIDI_ENABLE);
+	hideCheckBox(CB_CONF_MIDI_DUB_ENABLE);
 	hideCheckBox(CB_CONF_MIDI_REC_ALL);
 	hideCheckBox(CB_CONF_MIDI_REC_TRANS);
 	hideCheckBox(CB_CONF_MIDI_REC_VELOC);
@@ -2198,6 +2204,21 @@ void cbMIDIEnable(void)
 #else
 	checkBoxes[CB_CONF_MIDI_ENABLE].checked = false;
 	drawCheckBox(CB_CONF_MIDI_ENABLE);
+
+	okBox(0, "System message", "This program was not compiled with MIDI functionality!", NULL);
+#endif
+}
+
+void cbMIDIDubEnable(void)
+{
+#ifdef HAS_MIDI
+	if (midi.dubEnable)
+		midiDubPanic();
+
+	midi.dubEnable ^= 1;
+#else
+	checkBoxes[CB_CONF_MIDI_DUB_ENABLE].checked = false;
+	drawCheckBox(CB_CONF_MIDI_DUB_ENABLE);
 
 	okBox(0, "System message", "This program was not compiled with MIDI functionality!", NULL);
 #endif

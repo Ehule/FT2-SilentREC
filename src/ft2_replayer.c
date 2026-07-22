@@ -998,6 +998,11 @@ void triggerInstrument(channel_t *ch)
 
 void keyOff(channel_t *ch)
 {
+#ifdef HAS_MIDI
+	if (ch >= channel && ch < channel + MAX_CHANNELS)
+		midiDubNoteOff((uint8_t)(ch - channel));
+#endif
+
 	ch->keyOff = true;
 
 	instr_t *ins = ch->instrPtr;
@@ -1141,6 +1146,11 @@ void triggerNote(uint8_t note, uint8_t efx, uint8_t efxData, channel_t *ch)
 	}
 
 	ch->noteNum = note;
+
+#ifdef HAS_MIDI
+	if (ch >= channel && ch < channel + MAX_CHANNELS)
+		midiDubNoteOn((uint8_t)(ch - channel), note, 100);
+#endif
 
 	ASSERT(ch->instrNum <= 130);
 	instr_t *ins = instr[ch->instrNum];
@@ -3711,6 +3721,7 @@ void stopPlaying(void)
 		editor.row = song.row;
 
 #ifdef HAS_MIDI
+	midiDubPanic();
 	midi.currMIDIVibDepth = 0;
 	midi.currMIDIPitch = 0;
 #endif

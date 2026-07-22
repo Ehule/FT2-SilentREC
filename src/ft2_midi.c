@@ -30,6 +30,114 @@ midi_t midi; // globalized
 static volatile bool midiDeviceOpened;
 static bool recMIDIValidChn = true;
 static volatile RtMidiPtr midiInDev;
+static volatile RtMidiOutPtr midiOutDev;
+static bool midiOutPortOpened;
+static uint8_t midiDubActiveNote[MAX_CHANNELS];
+
+
+static bool initMidiOut(void)
+{
+	midiOutDev = rtmidi_out_create_default();
+	if (midiOutDev == NULL || !midiOutDev->ok)
+	{
+		if (midiOutDev != NULL)
+			rtmidi_out_free(midiOutDev);
+
+		midiOutDev = NULL;
+		return false;
+	}
+
+	/* A virtual port is ideal for dubbing directly into SunVox, a DAW,
+	** or another sequencer. Platforms without virtual-port support simply
+	** leave MIDI Dub unavailable until device selection is added. */
+	rtmidi_open_virtual_port(midiOutDev, "FT2 Tapehead MIDI Dub");
+	if (!midiOutDev->ok)
+	{
+		rtmidi_out_free(midiOutDev);
+		midiOutDev = NULL;
+		return false;
+	}
+
+	midiOutPortOpened = true;
+	midi.dubEnable = true;
+	memset(midiDubActiveNote, 0, sizeof (midiDubActiveNote));
+	return true;
+}
+
+void freeMidiOut(void)
+{
+	if (midiOutDev != NULL)
+	{
+		rtmidi_close_port(midiOutDev);
+		rtmidi_out_free(midiOutDev);
+		midiOutDev = NULL;
+	}
+
+	midiOutPortOpened = false;
+}
+
+static void midiDubSend3Raw(uint8_t status, uint8_t data1, uint8_t data2)
+{
+	if (!midiOutPortOpened || midiOutDev == NULL)
+		return;
+
+	const unsigned char message[3] = { status, data1, data2 };
+	rtmidi_out_send_message(midiOutDev, message, 3);
+}
+
+static void midiDubSend3(uint8_t status, uint8_t data1, uint8_t data2)
+{
+	if (midi.dubEnable)
+		midiDubSend3Raw(status, data1, data2);
+}
+
+void midiDubNoteOff(uint8_t channelIndex)
+{
+	if (!midi.dubEnable || channelIndex >= MAX_CHANNELS)
+		return;
+
+	const uint8_t activeNote = midiDubActiveNote[channelIndex];
+	if (activeNote == 0)
+		return;
+
+	const uint8_t midiChannel = channelIndex & 15;
+	midiDubSend3(0x80 | midiChannel, activeNote, 0);
+	midiDubActiveNote[channelIndex] = 0;
+}
+
+void midiDubNoteOn(uint8_t channelIndex, uint8_t note, uint8_t velocity)
+{
+	if (!midi.dubEnable || !midiOutPortOpened || channelIndex >= MAX_CHANNELS || note == 0 || note > 96)
+		return;
+
+	/* One monophonic MIDI voice per tracker track mirrors FT2's channel
+	** behavior and prevents stacked notes from surviving retriggers. */
+	midiDubNoteOff(channelIndex);
+
+	const uint8_t midiChannel = channelIndex & 15;
+	const uint8_t midiNote = note + 11; // FT2 note 1 (C-0) -> MIDI note 12
+	if (velocity == 0)
+		velocity = 100;
+
+	midiDubSend3(0x90 | midiChannel, midiNote, velocity & 0x7F);
+	midiDubActiveNote[channelIndex] = midiNote;
+}
+
+void midiDubPanic(void)
+{
+	for (uint8_t i = 0; i < MAX_CHANNELS; i++)
+	{
+		const uint8_t activeNote = midiDubActiveNote[i];
+		if (activeNote != 0)
+			midiDubSend3Raw(0x80 | (i & 15), activeNote, 0);
+
+		midiDubActiveNote[i] = 0;
+	}
+
+	/* Also send CC123 on all channels in case the receiver retained a note. */
+	for (uint8_t i = 0; i < 16; i++)
+		midiDubSend3Raw(0xB0 | i, 123, 0);
+}
 
 static inline void midiInSetChannel(uint8_t status)
 {
@@ -159,6 +267,17 @@ static char *getMidiInDeviceName(uint32_t deviceID)
 	return devStr;
 }
 
+static bool isMidiDubInputDevice(uint32_t deviceID)
+{
+	char *deviceName = getMidiInDeviceName(deviceID);
+	if (deviceName == NULL)
+		return false;
+
+	const bool isMidiDub = strstr(deviceName, "FT2 Tapehead MIDI Dub") != NULL;
+	free(deviceName);
+	return isMidiDub;
+}
+
 void closeMidiInDevice(void)
 {
 	if (midiDeviceOpened)
@@ -201,6 +320,11 @@ bool initMidiIn(void)
 bool openMidiInDevice(uint32_t deviceID)
 {
 	if (midiDeviceOpened || midiInDev == NULL || midi.numInputDevices == 0)
+		return false;
+
+	/* Never allow Tapehead's virtual MIDI output to feed its own input.
+	** Such a connection recursively echoes every note until FT2 hangs. */
+	if (isMidiDubInputDevice(deviceID))
 		return false;
 
 	rtmidi_open_port(midiInDev, deviceID, "FT2 Clone MIDI Port");
@@ -384,22 +508,24 @@ void rescanMidiInputDevices(void)
 {
 	freeMidiInputDeviceList();
 
-	midi.numInputDevices = getNumMidiInDevices();
-	if (midi.numInputDevices > MAX_MIDI_DEVICES)
-		midi.numInputDevices = MAX_MIDI_DEVICES;
+	const uint32_t numPorts = MIN(getNumMidiInDevices(), MAX_MIDI_DEVICES);
+	midi.numInputDevices = 0;
 
-	for (uint32_t i = 0; i < midi.numInputDevices; i++)
+	for (uint32_t port = 0; port < numPorts; port++)
 	{
-		char *deviceName = getMidiInDeviceName(i);
+		char *deviceName = getMidiInDeviceName(port);
 		if (deviceName == NULL)
-		{
-			if (midi.numInputDevices > 0)
-				midi.numInputDevices--; // hide device
+			continue;
 
+		/* Never expose our own virtual output as an FT2 input. Besides being
+		** confusing, connecting it creates an exponentially growing MIDI loop. */
+		if (strstr(deviceName, "FT2 Tapehead MIDI Dub") != NULL)
+		{
+			free(deviceName);
 			continue;
 		}
 
-		midi.inputDeviceNames[i] = deviceName;
+		midi.inputDeviceNames[midi.numInputDevices++] = deviceName;
 	}
 
 	setScrollBarEnd(SB_MIDI_INPUT_SCROLL, midi.numInputDevices);
@@ -483,6 +609,12 @@ bool testMidiInputDeviceListMouseDown(void)
 	if (midi.numInputDevices == 0 || deviceNum >= midi.numInputDevices)
 		return true;
 
+	/* Keep the MIDI Dub source visible for diagnosis, but never let FT2
+	** select it as its own input. */
+	if (midi.inputDeviceNames[deviceNum] != NULL &&
+	    strstr(midi.inputDeviceNames[deviceNum], "FT2 Tapehead MIDI Dub") != NULL)
+		return true;
+
 	if (midi.inputDeviceName != NULL)
 	{
 		if (!_stricmp(midi.inputDeviceName, midi.inputDeviceNames[deviceNum]))
@@ -507,6 +639,7 @@ bool testMidiInputDeviceListMouseDown(void)
 int32_t initMidiFunc(void *ptr)
 {
 	initMidiIn();
+	initMidiOut();
 	setMidiInputDeviceFromConfig();
 	openMidiInDevice(midi.inputDevice);
 	midi.rescanDevicesFlag = true;

@@ -272,6 +272,7 @@ void cbQuantization(void);
 void cbChangePattLenInsDel(void);
 void cbAltPatternLayout(void);
 void cbMIDIEnable(void);
+void cbMIDIDubEnable(void);
 void cbMIDIRecTransp(void);
 void cbMIDIRecAllChn(void);
 void cbMIDIRecVelocity(void);

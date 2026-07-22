@@ -344,6 +344,8 @@ static void cleanUpAndExit(void) // never call this inside the main loop!
 
 	closeMidiInDevice();
 	freeMidiIn();
+	midiDubPanic();
+	freeMidiOut();
 	freeMidiInputDeviceList();
 
 	if (midi.inputDeviceName != NULL)

@@ -118,6 +118,7 @@ checkBox_t checkBoxes[NUM_CHECKBOXES] =
 	{ 212, 133, 180, 24, cbChangePattLenInsDel },
 	{ 212, 159, 174, 12, cbAltPatternLayout },
 	{ 411,  93,  83, 12, cbMIDIEnable },
+	{ 511, 129, 108, 12, cbMIDIDubEnable },
 	{ 530, 106,  29, 12, cbMIDIRecAllChn },
 	{ 411, 119, 121, 12, cbMIDIRecTransp },
 	{ 411, 132, 109, 12, cbMIDIRecVelocity },

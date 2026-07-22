@@ -13,6 +13,7 @@ typedef struct midi_t
 {
 	char *inputDeviceName, *inputDeviceNames[MAX_MIDI_DEVICES];
 	volatile bool initThreadDone, callbackBusy, enable;
+	bool dubEnable;
 	bool rescanDevicesFlag;
 	uint32_t inputDevice, numInputDevices;
 	int16_t currMIDIVibDepth, currMIDIPitch;
@@ -23,9 +24,13 @@ extern midi_t midi; // ft2_midi.c
 
 void closeMidiInDevice(void);
 void freeMidiIn(void);
+void freeMidiOut(void);
 bool initMidiIn(void);
 bool openMidiInDevice(uint32_t deviceID);
 void recordMIDIEffect(uint8_t efx, uint8_t efxData);
+void midiDubNoteOn(uint8_t channelIndex, uint8_t note, uint8_t velocity);
+void midiDubNoteOff(uint8_t channelIndex);
+void midiDubPanic(void);
 bool saveMidiInputDeviceToConfig(void);
 bool setMidiInputDeviceFromConfig(void);
 void freeMidiInputDeviceList(void);
