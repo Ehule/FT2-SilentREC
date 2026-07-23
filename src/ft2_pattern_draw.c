@@ -14,6 +14,7 @@
 #include "ft2_bmp.h"
 #include "ft2_structs.h"
 #include "ft2_replayer.h"
+#include "ft2_interpolation.h"
 
 #define CURSOR_BREATHE_FRAMES 120
 
@@ -364,7 +365,7 @@ static void writePatternBlockMark(int32_t currRow, uint32_t rowHeight, const pat
 	for (int32_t y = 0; y < h; y++)
 	{
 		for (int32_t x = 0; x < w; x++)
-			ptr32[x] = video.palette[(ptr32[x] >> 24) ^ 2]; // ">> 24" to get palette of pixel, XOR 2 to change to mark palette
+			ptr32[x] = video.palette[(ptr32[x] >> 24) ^ (interpolationPreviewActive() ? 6 : 2)]; // preview uses a distinct temporary-selection palette
 
 		ptr32 += SCREEN_W;
 	}

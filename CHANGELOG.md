@@ -1,3 +1,14 @@
+## Pattern interpolation v1
+
+- Add `Ctrl+Shift+V` previewable absolute volume interpolation.
+- Add `Ctrl+Shift+B` previewable `8xx`/`Cxx` effect interpolation.
+- Add `Ctrl+Shift+M` line-step-aware note interpolation.
+- Add Freygish and Whole Tone scale presets and reorganize the note preset bank.
+- Make generated interpolation notes inherit their endpoint instrument.
+- Add live `1`-`0` scale preset auditioning from the original block snapshot.
+- Add Enter-to-commit, Escape/unrelated-key cancellation, and a distinct preview selection tint.
+- Reject incompatible endpoints or occupied interior target cells without overwriting pattern data.
+
 # Changelog
 
 All notable changes to FT2 Tapehead Edition are documented here.

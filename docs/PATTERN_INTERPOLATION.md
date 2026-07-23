@@ -1,0 +1,48 @@
+# Pattern Interpolation / Melodic Walk
+
+Tapehead Edition provides three pattern operations:
+
+- `Ctrl+Shift+V` — interpolate volume-column values.
+- `Ctrl+Shift+B` — interpolate compatible effect values (`8xx` panning and `Cxx` volume).
+- `Ctrl+Shift+M` — paint a scale-based melodic walk from selected anchor notes.
+
+Press `Enter` to commit a preview or `Escape` to cancel it. While a preview is active, `Space` and `Right Ctrl` retain their normal playback functions so the temporary result can be auditioned before committing.
+
+## Melodic Walk modes
+
+The selected block may span one or many tracks.
+
+### One anchor in the entire selection
+
+The single seed note is copied to the same row in every selected track. Each track then receives the same scale walk from that row to the bottom of the selection.
+
+### Multiple one-note tracks
+
+The first note found in each populated track becomes that track's seed. Its walk begins on its own row and continues to the bottom of the selection. Empty selected tracks remain empty.
+
+### Two anchors on a track
+
+The first and last notes in that track are preserved as endpoints. Interior notes walk through the selected scale between them. This works for both single-track and multi-track selections.
+
+A track with more than two anchor notes is rejected to avoid overwriting intentional material. Two explicit endpoint instruments must match; an omitted endpoint instrument inherits the other one.
+
+## Scale and direction preview
+
+While the note preview is active, choose a scale:
+
+1. Chromatic
+2. Major
+3. Natural minor
+4. Major pentatonic
+5. Minor pentatonic
+6. Dorian
+7. Mixolydian
+8. Freygish (Phrygian dominant / Ahava Rabbah)
+9. Harmonic minor
+0. Whole tone
+
+The first press chooses the scale and previews an ascending open-ended walk. Press the same number again to toggle open-ended walks between ascending and descending. Choosing a different number selects that scale and resets open-ended walks to ascending.
+
+Two-anchor walks follow the direction of their explicit destination note. The endpoint itself is never replaced, even when it is outside the selected scale.
+
+The current edit-row skip controls spacing. A skip of 1 paints every row; larger values leave intentional rhythmic gaps.

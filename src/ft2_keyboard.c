@@ -26,6 +26,7 @@
 #include "ft2_trim.h"
 #include "ft2_sample_ed_features.h"
 #include "ft2_midi.h"
+#include "ft2_interpolation.h"
 #include "ft2_structs.h"
 #include "ft2_pattern_draw.h"
 
@@ -187,6 +188,9 @@ void keyDownHandler(SDL_Scancode scancode, SDL_Keycode keycode, bool keyWasRepea
 		nibblesKeyAdministrator(scancode);
 		return;
 	}
+
+	if (interpolationHandlePreviewKey(scancode, keycode, keyWasRepeated))
+		return;
 
 	if (keycode == SDLK_ESCAPE)
 	{
@@ -896,6 +900,9 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 
 		case SDLK_b:
 		{
+			if (keyb.leftCtrlPressed && keyb.leftShiftPressed)
+				return interpolationBegin(INTERPOLATE_EFFECT);
+
 			if (keyb.leftCtrlPressed)
 			{
 				if (!ui.aboutScreenShown)
@@ -1095,6 +1102,9 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 
 		case SDLK_m:
 		{
+			if (keyb.leftCtrlPressed && keyb.leftShiftPressed)
+				return interpolationBegin(INTERPOLATE_NOTES);
+
 			if (keyb.leftCtrlPressed)
 			{
 				if (ui.aboutScreenShown)  hideAboutScreen();
@@ -1108,6 +1118,7 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 			}
 		}
 		break;
+
 
 		case SDLK_n:
 		{
@@ -1226,6 +1237,9 @@ static bool checkModifiedKeys(SDL_Keycode keycode)
 
 		case SDLK_v:
 		{
+			if (keyb.leftCtrlPressed && keyb.leftShiftPressed)
+				return interpolationBegin(INTERPOLATE_VOLUME);
+
 #ifdef __APPLE__
 			if (keyb.leftAltPressed || keyb.leftCommandPressed)
 #else
