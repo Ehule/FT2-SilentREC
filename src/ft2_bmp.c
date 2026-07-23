@@ -7,10 +7,17 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <limits.h>
+#include <SDL2/SDL.h>
 #include "ft2_palette.h"
 #include "ft2_gfxdata.h"
 #include "ft2_bmp.h"
 #include "ft2_video.h"
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 enum
 {
@@ -51,6 +58,8 @@ bmpHeader_t;
 #endif
 
 static uint32_t *loadBMPTo32Bit(const uint8_t *src);
+static uint32_t *loadFastTracksLogoFromDisk(void);
+static uint32_t interpolateRGB(uint32_t color1, uint32_t color2, uint32_t fraction);
 static uint8_t *loadBMPTo1Bit(const uint8_t *src);
 static uint8_t *loadBMPTo4BitPal(const uint8_t *src);
 
@@ -77,11 +86,195 @@ static int8_t getFT2PalNrFromPixel(uint32_t pixel32)
 	return PAL_TRANSPR;
 }
 
+
+static uint32_t *loadExternalBMP32(const char *filename)
+{
+	SDL_Surface *surface = SDL_LoadBMP(filename);
+	if (surface == NULL)
+		return NULL;
+
+	if (surface->w != 154 || surface->h != 128)
+	{
+		fprintf(stderr, "Fast Tracks logo '%s' must be exactly 154x128 pixels (got %dx%d).\n",
+			filename, surface->w, surface->h);
+		SDL_FreeSurface(surface);
+		return NULL;
+	}
+
+	SDL_Surface *converted = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_ARGB8888, 0);
+	SDL_FreeSurface(surface);
+	if (converted == NULL)
+		return NULL;
+
+	uint32_t *pixels = (uint32_t *)malloc(154 * 128 * sizeof (uint32_t));
+	if (pixels == NULL)
+	{
+		SDL_FreeSurface(converted);
+		return NULL;
+	}
+
+	for (int32_t y = 0; y < 128; y++)
+	{
+		const uint32_t *src32 = (const uint32_t *)((const uint8_t *)converted->pixels + (y * converted->pitch));
+		uint32_t *dst32 = &pixels[y * 154];
+		for (int32_t x = 0; x < 154; x++)
+			dst32[x] = src32[x] & 0x00FFFFFF;
+	}
+
+	SDL_FreeSurface(converted);
+	return pixels;
+}
+
+static uint32_t *tryLoadFastTracksLogo(const char *basePath, const char *relativePath)
+{
+	char path[PATH_MAX + 1];
+	const int32_t charsWritten = snprintf(path, sizeof (path), "%s%s", basePath, relativePath);
+	if (charsWritten <= 0 || charsWritten >= (int32_t)sizeof (path))
+		return NULL;
+
+	uint32_t *pixels = loadExternalBMP32(path);
+	if (pixels != NULL)
+		fprintf(stderr, "Loaded Fast Tracks logo: %s\n", path);
+
+	return pixels;
+}
+
+static uint32_t *loadFastTracksLogoFromDisk(void)
+{
+	/*
+	** Search relative to the executable first. This makes the external logo
+	** work from desktop launchers as well as terminals, regardless of cwd.
+	*/
+	char *basePath = SDL_GetBasePath();
+	if (basePath != NULL)
+	{
+		static const char *const relativePaths[] =
+		{
+			"bmp/fastTracksLogoBadges.bmp",
+			"../bmp/fastTracksLogoBadges.bmp",
+			"fastTracksLogoBadges.bmp"
+		};
+
+		for (uint32_t i = 0; i < sizeof (relativePaths) / sizeof (relativePaths[0]); i++)
+		{
+			uint32_t *pixels = tryLoadFastTracksLogo(basePath, relativePaths[i]);
+			if (pixels != NULL)
+			{
+				SDL_free(basePath);
+				return pixels;
+			}
+		}
+
+		SDL_free(basePath);
+	}
+
+	/* Development-tree fallback. */
+	uint32_t *pixels = loadExternalBMP32("src/gfxdata/bmp/fastTracksLogoBadges.bmp");
+	if (pixels != NULL)
+	{
+		fprintf(stderr, "Loaded Fast Tracks logo: src/gfxdata/bmp/fastTracksLogoBadges.bmp\n");
+		return pixels;
+	}
+
+	fprintf(stderr, "Could not load external Fast Tracks logo. Using embedded FT2 logo.\n");
+	return NULL;
+}
+
+static uint32_t interpolateRGB(uint32_t color1, uint32_t color2, uint32_t fraction)
+{
+	const int32_t r1 = RGB32_R(color1);
+	const int32_t g1 = RGB32_G(color1);
+	const int32_t b1 = RGB32_B(color1);
+	const int32_t r2 = RGB32_R(color2);
+	const int32_t g2 = RGB32_G(color2);
+	const int32_t b2 = RGB32_B(color2);
+
+	const int32_t r = r1 + (((r2 - r1) * (int32_t)fraction + 127) / 255);
+	const int32_t g = g1 + (((g2 - g1) * (int32_t)fraction + 127) / 255);
+	const int32_t b = b1 + (((b2 - b1) * (int32_t)fraction + 127) / 255);
+	return RGB32(r, g, b);
+}
+
+void refreshFastTracksLogoTheme(void)
+{
+	if (bmp.fastTracksLogoSource32 == NULL || bmp.fastTracksLogoBadges32 == NULL)
+		return;
+
+	/*
+	** Build a luminance-ordered ramp from real colors in the current FT2
+	** theme. The source artwork remains ordinary grayscale; its brightness
+	** chooses a position in this theme ramp.
+	*/
+	uint32_t anchors[5] =
+	{
+		video.palette[PAL_BCKGRND] & 0x00FFFFFF,
+		video.palette[PAL_BUTTON2] & 0x00FFFFFF,
+		video.palette[PAL_BUTTONS] & 0x00FFFFFF,
+		video.palette[PAL_BUTTON1] & 0x00FFFFFF,
+		video.palette[PAL_BTNTEXT] & 0x00FFFFFF
+	};
+
+	/* Sort the anchors from darkest to lightest. */
+	for (int32_t i = 0; i < 4; i++)
+	{
+		for (int32_t j = i + 1; j < 5; j++)
+		{
+			const uint32_t li = (RGB32_R(anchors[i]) * 54) + (RGB32_G(anchors[i]) * 183) + (RGB32_B(anchors[i]) * 19);
+			const uint32_t lj = (RGB32_R(anchors[j]) * 54) + (RGB32_G(anchors[j]) * 183) + (RGB32_B(anchors[j]) * 19);
+			if (lj < li)
+			{
+				const uint32_t tmp = anchors[i];
+				anchors[i] = anchors[j];
+				anchors[j] = tmp;
+			}
+		}
+	}
+
+	uint32_t themeRamp[256];
+	for (int32_t i = 0; i < 256; i++)
+	{
+		const int32_t scaled = i * 4;
+		const int32_t segment = (scaled >= 1020) ? 3 : scaled >> 8;
+		const uint32_t fraction = (scaled >= 1020) ? 255 : (uint32_t)(scaled & 255);
+		themeRamp[i] = interpolateRGB(anchors[segment], anchors[segment + 1], fraction);
+	}
+
+	for (int32_t i = 0; i < 154 * 128; i++)
+	{
+		const uint32_t pixel = bmp.fastTracksLogoSource32[i];
+		const int32_t r = RGB32_R(pixel);
+		const int32_t g = RGB32_G(pixel);
+		const int32_t b = RGB32_B(pixel);
+
+		const int32_t maxRG = (r > g) ? r : g;
+		const int32_t minRG = (r < g) ? r : g;
+		const int32_t maxRGB = (maxRG > b) ? maxRG : b;
+		const int32_t minRGB = (minRG < b) ? minRG : b;
+		if (maxRGB - minRGB <= 3) // tolerate tiny grayscale rounding errors
+		{
+			const uint8_t gray = (uint8_t)((r + g + b + 1) / 3);
+			bmp.fastTracksLogoBadges32[i] = themeRamp[gray];
+		}
+		else
+		{
+			/* Full-color custom artwork is intentionally preserved as-is. */
+			bmp.fastTracksLogoBadges32[i] = pixel;
+		}
+	}
+}
+
 bool loadBMPs(void)
 {
 	memset(&bmp, 0, sizeof (bmp));
 
 	bmp.ft2AboutLogo = loadBMPTo32Bit(ft2AboutLogoBMP);
+	bmp.fastTracksLogoSource32 = loadFastTracksLogoFromDisk();
+	if (bmp.fastTracksLogoSource32 != NULL)
+	{
+		bmp.fastTracksLogoBadges32 = (uint32_t *)malloc(154 * 128 * sizeof (uint32_t));
+		if (bmp.fastTracksLogoBadges32 != NULL)
+			memcpy(bmp.fastTracksLogoBadges32, bmp.fastTracksLogoSource32, 154 * 128 * sizeof (uint32_t));
+	}
 	bmp.buttonGfx = loadBMPTo1Bit(buttonGfxBMP);
 	bmp.font1 = loadBMPTo1Bit(font1BMP);
 	bmp.font2 = loadBMPTo1Bit(font2BMP);
@@ -127,6 +320,8 @@ bool loadBMPs(void)
 void freeBMPs(void)
 {
 	if (bmp.ft2AboutLogo != NULL) { free(bmp.ft2AboutLogo); bmp.ft2AboutLogo = NULL; }
+	if (bmp.fastTracksLogoSource32 != NULL) { free(bmp.fastTracksLogoSource32); bmp.fastTracksLogoSource32 = NULL; }
+	if (bmp.fastTracksLogoBadges32 != NULL) { free(bmp.fastTracksLogoBadges32); bmp.fastTracksLogoBadges32 = NULL; }
 	if (bmp.buttonGfx != NULL) { free(bmp.buttonGfx); bmp.buttonGfx = NULL; }
 	if (bmp.font1 != NULL) { free(bmp.font1); bmp.font1 = NULL; }
 	if (bmp.font2 != NULL) { free(bmp.font2); bmp.font2 = NULL; }

@@ -2319,27 +2319,29 @@ void drawSongName(void)
 
 void changeLogoType(uint8_t logoType)
 {
-	pushButtons[PB_LOGO].bitmapFlag = true;
+	pushButton_t *logoButton = &pushButtons[PB_LOGO];
+	logoButton->bitmapFlag = true;
+	logoButton->bitmap32Flag = false;
 
-	/*
-	** The large logo is now the Fast Tracks master button. Keep the stock
-	** FT2/Triton artwork while the transport is disabled, and use the new
-	** theme-aware Fast Tracks artwork while it is enabled. Both sheets keep
-	** the original four-row unpressed/pressed layout.
-	*/
 	const bool fastTracksEnabled = fastTracksPOCMasterIsEnabled();
-	uint8_t *logoBadges = fastTracksEnabled
-		? bmp.fastTracksLogoBadges
-		: bmp.ft2LogoBadges;
+	if (fastTracksEnabled && bmp.fastTracksLogoBadges32 != NULL)
+	{
+		/* The runtime sheet uses frames 2/3 for the Fast Tracks logo. */
+		logoButton->bitmapFlag = false;
+		logoButton->bitmap32Flag = true;
+		logoButton->bitmap32Unpressed = &bmp.fastTracksLogoBadges32[(154 * 32) * 2];
+		logoButton->bitmap32Pressed = &bmp.fastTracksLogoBadges32[(154 * 32) * 3];
+	}
+	else
+	{
+		uint8_t *logoBadges = fastTracksEnabled
+			? bmp.ft2LogoBadges
+			: bmp.ft2LogoBadges;
 
-	/*
-	** The Fast Tracks sheet stores its actual FAST TRACKS artwork in frames
-	** 2/3. Frames 0/1 are the earlier FastTracker-style variants and must not
-	** be selected by the user's normal FT2 logo preference.
-	*/
-	const uint32_t firstFrame = fastTracksEnabled ? 2 : ((logoType == 0) ? 0 : 2);
-	pushButtons[PB_LOGO].bitmapUnpressed = &logoBadges[(154 * 32) * firstFrame];
-	pushButtons[PB_LOGO].bitmapPressed = &logoBadges[(154 * 32) * (firstFrame + 1)];
+		const uint32_t firstFrame = (logoType == 0) ? 0 : 2;
+		logoButton->bitmapUnpressed = &logoBadges[(154 * 32) * firstFrame];
+		logoButton->bitmapPressed = &logoBadges[(154 * 32) * (firstFrame + 1)];
+	}
 
 	drawPushButton(PB_LOGO);
 }

@@ -129,9 +129,6 @@
       <FixedBaseAddress>false</FixedBaseAddress>
       <AdditionalManifestDependencies>"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'";%(AdditionalManifestDependencies)</AdditionalManifestDependencies>
     </Link>
-    <PreBuildEvent>
-      <Command>py -3 &quot;$(ProjectDir)..\..\scripts\update_fasttracks_logo.py&quot;</Command>
-    </PreBuildEvent>
     <PostBuildEvent />
     <Manifest />
     <Manifest>
@@ -187,9 +184,6 @@
       <AdditionalDependencies>SDL2main.lib;SDL2.lib;shlwapi.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalManifestDependencies>"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'";%(AdditionalManifestDependencies)</AdditionalManifestDependencies>
     </Link>
-    <PreBuildEvent>
-      <Command>py -3 &quot;$(ProjectDir)..\..\scripts\update_fasttracks_logo.py&quot;</Command>
-    </PreBuildEvent>
     <PostBuildEvent>
       <Message>
       </Message>
@@ -241,9 +235,6 @@
       <Command>
       </Command>
     </PostBuildEvent>
-    <PreBuildEvent>
-      <Command>py -3 &quot;$(ProjectDir)..\..\scripts\update_fasttracks_logo.py&quot;</Command>
-    </PreBuildEvent>
     <Manifest>
       <EnableDpiAwareness>PerMonitorHighDPIAware</EnableDpiAwareness>
     </Manifest>
@@ -288,9 +279,6 @@
       <Command>
       </Command>
     </PostBuildEvent>
-    <PreBuildEvent>
-      <Command>py -3 &quot;$(ProjectDir)..\..\scripts\update_fasttracks_logo.py&quot;</Command>
-    </PreBuildEvent>
     <ResourceCompile>
       <PreprocessorDefinitions>_WIN64</PreprocessorDefinitions>
     </ResourceCompile>

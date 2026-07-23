@@ -487,6 +487,19 @@ void drawPushButton(uint16_t pushButtonID)
 
 	ASSERT(x < SCREEN_W && y < SCREEN_H && w >= 4 && h >= 4);
 
+	if (b->bitmap32Flag)
+	{
+		const uint32_t *src32 = (state == PUSHBUTTON_UNPRESSED) ? b->bitmap32Unpressed : b->bitmap32Pressed;
+		uint32_t *dst32 = &video.frameBuffer[(y * SCREEN_W) + x];
+		for (uint16_t yy = 0; yy < h; yy++)
+		{
+			memcpy(dst32, src32, w * sizeof (uint32_t));
+			src32 += w;
+			dst32 += SCREEN_W;
+		}
+		return;
+	}
+
 	if (b->bitmapFlag)
 	{
 		blitFast(x, y, (state == PUSHBUTTON_UNPRESSED) ? b->bitmapUnpressed : b->bitmapPressed, w, h);

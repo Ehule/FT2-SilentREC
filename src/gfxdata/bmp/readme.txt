@@ -20,10 +20,9 @@ Doing so will mess up the "pixel color -> FT2 palette number" conversion
 when unpacking the graphics on runtime.
 
 Tapehead Edition Fast Tracks logo:
-- Editable source: fastTracksLogoBadges.bmp
-- Embedded array: ../ft2_bmp_logo.c (fastTracksLogoBadgesBMP)
-- After editing the BMP, run this from the repository root:
-    python3 scripts/update_fasttracks_logo.py
-
-The script verifies that the image remains a 154x128, 4-bit indexed,
-BI_RLE4-compressed BMP before replacing the embedded byte array.
+- The external 154x128 fastTracksLogoBadges.bmp is loaded at runtime.
+- Put it in a bmp directory beside the executable, or in src/gfxdata/bmp
+  while developing from the repository.
+- Grayscale artwork is recolored through the current FT2 theme at runtime.
+- Full-color artwork is displayed unchanged.
+- The old embedded logo remains available as a fallback.

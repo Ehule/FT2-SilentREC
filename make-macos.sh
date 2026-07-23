@@ -32,11 +32,6 @@ if [ ! -d $TARGET_DIR ]; then
 fi
 
 #
-# Regenerate embedded Fast Tracks artwork from the editable BMP.
-#
-python3 scripts/update_fasttracks_logo.py || exit 1
-
-#
 # Compile
 #
 function compile() {

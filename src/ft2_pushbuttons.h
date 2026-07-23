@@ -412,6 +412,9 @@ typedef struct pushButton_t // DO NOT TOUCH!
 	bool bitmapFlag, visible;
 	const uint8_t *bitmapUnpressed;
 	const uint8_t *bitmapPressed;
+	bool bitmap32Flag;
+	const uint32_t *bitmap32Unpressed;
+	const uint32_t *bitmap32Pressed;
 } pushButton_t;
 
 void drawPushButton(uint16_t pushButtonID);

@@ -7,6 +7,8 @@
 #include "ft2_video.h"
 #include "ft2_palette.h"
 #include "ft2_tables.h"
+#include "ft2_bmp.h"
+#include "ft2_pattern_ed.h"
 
 uint8_t cfg_ColorNum = 0; // globalized
 
@@ -75,11 +77,17 @@ void setPalette(pal16 *p, bool redrawScreen)
 
 	video.palette[PAL_LOOPPIN] = (PAL_LOOPPIN << 24) | RGB32(r8, g8, b8);
 
+	/* Repaint grayscale custom artwork through the newly selected theme. */
+	refreshFastTracksLogoTheme();
+
 	// update framebuffer pixels with new palette
 	if (redrawScreen && video.frameBuffer != NULL)
 	{
 		for (int32_t i = 0; i < SCREEN_W*SCREEN_H; i++)
 			video.frameBuffer[i] = video.palette[(video.frameBuffer[i] >> 24) & 15]; // ARGB alpha channel = palette index
+
+		/* The custom logo is true-color, so draw its refreshed themed copy again. */
+		changeLogoType(0);
 	}
 }
 

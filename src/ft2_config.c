@@ -499,8 +499,77 @@ static UNICHAR *getFullMidiDevConfigPathU(void) // kinda hackish
 }
 #endif
 
+static bool setPortableConfigFileLocation(void)
+{
+	char *basePath = SDL_GetBasePath();
+	if (basePath == NULL)
+		return false;
+
+#ifdef _WIN32
+	const int32_t basePathLen = MultiByteToWideChar(CP_UTF8, 0, basePath, -1, NULL, 0);
+	if (basePathLen <= 0)
+	{
+		SDL_free(basePath);
+		return false;
+	}
+
+	const int32_t ft2DotCfgStrLen = (int32_t)UNICHAR_STRLEN(L"FT2.CFG");
+	UNICHAR *filePathU = (UNICHAR *)malloc((basePathLen + ft2DotCfgStrLen) * sizeof (UNICHAR));
+	if (filePathU == NULL)
+	{
+		SDL_free(basePath);
+		return false;
+	}
+
+	if (MultiByteToWideChar(CP_UTF8, 0, basePath, -1, filePathU, basePathLen) <= 0)
+	{
+		free(filePathU);
+		SDL_free(basePath);
+		return false;
+	}
+
+	UNICHAR_STRCAT(filePathU, L"FT2.CFG");
+#else
+	const int32_t basePathLen = (int32_t)strlen(basePath);
+	const int32_t ft2DotCfgStrLen = (int32_t)UNICHAR_STRLEN("FT2.CFG");
+	UNICHAR *filePathU = (UNICHAR *)malloc((basePathLen + ft2DotCfgStrLen + 1) * sizeof (UNICHAR));
+	if (filePathU == NULL)
+	{
+		SDL_free(basePath);
+		return false;
+	}
+
+	UNICHAR_STRCPY(filePathU, basePath);
+	UNICHAR_STRCAT(filePathU, "FT2.CFG");
+#endif
+
+	SDL_free(basePath);
+
+	FILE *f = UNICHAR_FOPEN(filePathU, "rb");
+	if (f == NULL)
+	{
+		free(filePathU);
+		return false;
+	}
+
+	fclose(f);
+	editor.configFileLocationU = filePathU;
+	return true;
+}
+
 static void setConfigFileLocation(void) // kinda hackish
 {
+	/* A config beside the executable enables portable mode. FT2.CFG,
+	** audiodev.ini and mididev.ini will then all be read/written there.
+	*/
+	if (setPortableConfigFileLocation())
+	{
+#ifdef HAS_MIDI
+		editor.midiConfigFileLocationU = getFullMidiDevConfigPathU();
+#endif
+		editor.audioDevConfigFileLocationU = getFullAudDevConfigPathU();
+		return;
+	}
 	// Windows
 #ifdef _WIN32
 	int32_t ft2DotCfgStrLen = (int32_t)UNICHAR_STRLEN(L"FT2.CFG");
