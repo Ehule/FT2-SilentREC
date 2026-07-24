@@ -6,7 +6,7 @@ Tapehead Edition provides three pattern operations:
 - `Ctrl+Shift+B` — interpolate compatible effect values (`8xx` panning and `Cxx` volume).
 - `Ctrl+Shift+M` — paint a scale-based melodic walk from selected anchor notes.
 
-Press `Enter` to commit a preview or `Escape` to cancel it. While a preview is active, `Space` and `Right Ctrl` retain their normal playback functions so the temporary result can be auditioned before committing.
+Press `Enter` to commit a preview or `Escape` to cancel it. While a preview is active, `Space` and `Right Ctrl` retain their normal playback functions so the temporary result can be auditioned before committing. The Fast Tracks logo also remains usable, including its Ctrl- and Shift-modified actions.
 
 ## Melodic Walk modes
 
@@ -46,3 +46,13 @@ The first press chooses the scale and previews an ascending open-ended walk. Pre
 Two-anchor walks follow the direction of their explicit destination note. The endpoint itself is never replaced, even when it is outside the selected scale.
 
 The current edit-row skip controls spacing. A skip of 1 paints every row; larger values leave intentional rhythmic gaps.
+
+### Live spacing control
+
+While a Melodic Walk preview is active:
+
+- `` ` `` increases the temporary step length by one row.
+- **Shift + grave/tilde** decreases the temporary step length by one row.
+- Decreasing from step length `1` to `0` cancels the preview and restores the original pattern.
+
+Every spacing change restores the preview snapshot and regenerates the complete Melodic Walk using the currently selected scale and direction. Playback continues uninterrupted. The temporary spacing begins at the current edit-step value but does not modify that global setting. During preview, the edit-step display temporarily shows the Melodic Walk spacing (1–16); committing or canceling restores the normal editor value.

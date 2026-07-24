@@ -14,3 +14,4 @@ enum
 bool interpolationBegin(uint8_t type);
 bool interpolationHandlePreviewKey(SDL_Scancode scancode, SDL_Keycode keycode, bool keyWasRepeated);
 bool interpolationPreviewActive(void);
+uint8_t interpolationGetDisplayedStep(void);

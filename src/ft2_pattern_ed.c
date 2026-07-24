@@ -22,6 +22,7 @@
 #include "ft2_tables.h"
 #include "ft2_bmp.h"
 #include "ft2_structs.h"
+#include "ft2_interpolation.h"
 
 // for pattern marking w/ keyboard
 static int8_t lastChMark;
@@ -2268,8 +2269,9 @@ void drawGlobalVol(uint16_t val)
 
 void drawIDAdd(void)
 {
-	ASSERT(editor.editRowSkip <= 16);
-	textOutFixed(152, 64, PAL_FORGRND, PAL_DESKTOP, dec2StrTab[editor.editRowSkip]);
+	const uint8_t displayedStep = interpolationGetDisplayedStep();
+	ASSERT(displayedStep <= 16);
+	textOutFixed(152, 64, PAL_FORGRND, PAL_DESKTOP, dec2StrTab[displayedStep]);
 }
 
 void resetPlaybackTime(void)

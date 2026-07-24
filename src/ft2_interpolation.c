@@ -8,11 +8,13 @@
 #include "ft2_replayer.h"
 #include "ft2_pattern_ed.h"
 #include "ft2_gui.h"
+#include "ft2_keyboard.h"
 #include "ft2_interpolation.h"
 
 static bool previewActive, scaleKeyChosen;
 static uint8_t previewType, scalePreset;
 static int8_t walkDirection;
+static int32_t previewStepLength;
 static uint16_t previewPattern;
 static note_t patternSnapshot[MAX_PATT_LEN * MAX_CHANNELS];
 
@@ -208,7 +210,7 @@ static bool validateSelection(uint8_t type, int32_t x1, int32_t x2, int32_t y1, 
 
 static void paintOpenWalk(note_t *p, int32_t ch, int32_t anchorRow, const note_t *anchor, int32_t y2)
 {
-	const int32_t step = editor.editRowSkip;
+	const int32_t step = previewStepLength;
 	const uint16_t mask = scaleMasks[scalePreset];
 	int32_t degree = walkDirection;
 
@@ -226,7 +228,7 @@ static void paintOpenWalk(note_t *p, int32_t ch, int32_t anchorRow, const note_t
 
 static void paintEndpointWalk(note_t *p, int32_t ch, int32_t startRow, int32_t endRow, const note_t *a, const note_t *b)
 {
-	const int32_t step = editor.editRowSkip;
+	const int32_t step = previewStepLength;
 	const int32_t direction = b->note >= a->note ? 1 : -1;
 	const int32_t endDegree = nearestScaleDegree(a->note, b->note, direction, scaleMasks[scalePreset]);
 	const int32_t slotCount = (endRow - startRow + step - 1) / step;
@@ -355,9 +357,11 @@ bool interpolationBegin(uint8_t type)
 	previewType = type;
 	scalePreset = 0;
 	walkDirection = 1;
+	previewStepLength = editor.editRowSkip;
 	scaleKeyChosen = false;
 	memcpy(patternSnapshot, pattern[previewPattern], sizeof (patternSnapshot));
 	previewActive = true;
+	drawIDAdd();
 	renderPreview();
 	return true;
 }
@@ -367,6 +371,7 @@ static void cancelPreview(void)
 	if (pattern[previewPattern] != NULL)
 		memcpy(pattern[previewPattern], patternSnapshot, sizeof (patternSnapshot));
 	previewActive = false;
+	drawIDAdd();
 	ui.updatePatternEditor = true;
 }
 
@@ -378,6 +383,7 @@ bool interpolationHandlePreviewKey(SDL_Scancode scancode, SDL_Keycode keycode, b
 	if (!keyWasRepeated && (keycode == SDLK_RETURN || scancode == SDL_SCANCODE_KP_ENTER))
 	{
 		previewActive = false;
+		drawIDAdd();
 		setSongModifiedFlag();
 		ui.updatePatternEditor = true;
 		return true;
@@ -389,11 +395,36 @@ bool interpolationHandlePreviewKey(SDL_Scancode scancode, SDL_Keycode keycode, b
 		return true;
 	}
 
-	/* Playback controls are part of the live audition workflow. Let them
-	** continue through normal keyboard handling without discarding the
-	** temporary pattern preview. */
-	if (keycode == SDLK_SPACE || keycode == SDLK_RCTRL)
+	/* Playback and modifier controls are part of the live audition workflow.
+	** Let them continue through normal input handling without discarding the
+	** temporary pattern preview. This also keeps the Fast Tracks logo usable
+	** with its Ctrl- and Shift-modified mouse actions. */
+	if (keycode == SDLK_SPACE || keycode == SDLK_LCTRL || keycode == SDLK_RCTRL ||
+		keycode == SDLK_LSHIFT || keycode == SDLK_RSHIFT)
+	{
 		return false;
+	}
+
+	if (!keyWasRepeated && previewType == INTERPOLATE_NOTES && scancode == SDL_SCANCODE_GRAVE)
+	{
+		if (keyb.leftShiftPressed)
+		{
+			previewStepLength--;
+			if (previewStepLength <= 0)
+			{
+				cancelPreview();
+				return true;
+			}
+		}
+		else if (previewStepLength < 16)
+		{
+			previewStepLength++;
+		}
+
+		drawIDAdd();
+		renderPreview();
+		return true;
+	}
 
 	if (!keyWasRepeated && previewType == INTERPOLATE_NOTES)
 	{
@@ -425,4 +456,12 @@ bool interpolationHandlePreviewKey(SDL_Scancode scancode, SDL_Keycode keycode, b
 bool interpolationPreviewActive(void)
 {
 	return previewActive;
+}
+
+uint8_t interpolationGetDisplayedStep(void)
+{
+	if (previewActive && previewType == INTERPOLATE_NOTES)
+		return (uint8_t)previewStepLength;
+
+	return editor.editRowSkip;
 }
